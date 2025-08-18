@@ -65,7 +65,7 @@ export default function IndexChooser() {
           </>
         ) : (
           <button
-onClick={() => nav('/signin', { state: { returnTo: '/OrderTrays' } })}
+onClick={() => nav('/signin', { state: { returnTo: '/' } })}
             className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded"
           >
             Sign In / Create Account

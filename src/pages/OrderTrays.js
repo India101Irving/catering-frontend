@@ -1,4 +1,4 @@
-// OrderTrays.js — refactor of your trays flow (from CustomerWizard)
+// src/pages/OrderTrays.js — trays flow (Group label removed in cards)
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -148,7 +148,7 @@ export default function OrderTrays() {
           </>
         ) : (
           <button
-onClick={() => nav('/signin', { state: { returnTo: '/OrderTrays' } })}
+            onClick={() => nav('/signin', { state: { returnTo: '/OrderTrays' } })}
             className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded"
           >
             Sign In / Create Account
@@ -191,7 +191,7 @@ onClick={() => nav('/signin', { state: { returnTo: '/OrderTrays' } })}
             <button
               disabled={cart.length === 0}
               onClick={() => {
-if (!currentUser) { nav('/signin', { state: { returnTo: '/checkout' } }); return; }
+                if (!currentUser) { nav('/signin', { state: { returnTo: '/checkout' } }); return; }
                 nav('/checkout', { state: { cart, cartTotal } });
               }}
               className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
@@ -236,13 +236,20 @@ if (!currentUser) { nav('/signin', { state: { returnTo: '/checkout' } }); return
         <p>Loading menu…</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(grouped[cat] || []).map(it => (
-            <TrayCard
-              key={it.Item}
-              item={it}
-              onAdd={(size, qty, unit) => addToCart(size, qty, unit, it)}
-            />
-          ))}
+          {(grouped[cat] || []).map((it) => {
+            // Strip the Group label so TrayCard can't render "Group A/B/C"
+            const itemForCard = { ...it };
+            delete itemForCard.Group; // common key in your data
+            delete itemForCard.group; // defensive lower-case alias
+
+            return (
+              <TrayCard
+                key={it.Item}
+                item={itemForCard}
+                onAdd={(size, qty, unit) => addToCart(size, qty, unit, itemForCard)}
+              />
+            );
+          })}
         </div>
       )}
 

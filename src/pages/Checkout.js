@@ -146,7 +146,7 @@ function buildWhenISO(dateISO, timeLabel) {
   if (!hm) return null;
   const dt = new Date(`${dateISO}T00:00:00`);
   dt.setHours(hm.h, hm.min, 0, 0);
-  return dt.toISOString(); // UTC ISO; fine for display with new Date(when)
+  return dt.toISOString();
 }
 
 /* =================== Google Maps JS SDK =================== */
@@ -235,7 +235,7 @@ export default function Checkout() {
   /* no cart -> home */
   useEffect(() => { if (cart.length === 0) nav('/', { replace: true }); }, [cart.length, nav]);
 
-  /* ---- DRAFT RESTORE (so back from Payment keeps date/time etc.) ---- */
+  /* ---- DRAFT RESTORE ---- */
   const draft = readCheckoutDraft();
 
   /* form state */
@@ -433,7 +433,7 @@ export default function Checkout() {
   const hasSlot = !!pickupDate && !!pickupTime;
   const ready = phoneOk && hasSlot && hasAddress && canDeliverDistance;
 
-  // keep a lightweight draft so Back from Payment restores date/time etc.
+  // keep a lightweight draft
   useEffect(() => {
     const draftCustomer = {
       method,
@@ -452,20 +452,17 @@ export default function Checkout() {
     );
   }, [method, pickupDate, pickupTime, distance, addr1, addr2, city, st, zip, warmers, utensils, refCode, discCode, payment]);
 
-  /* ===== orderMeta: only accept valid package data; never show stale for trays ===== */
+  /* ===== orderMeta ===== */
   const isPackageFlow = useMemo(
     () => cart.some((it) => isPackageSize(getItemSize(it))),
     [cart]
   );
 
   const orderMeta = useMemo(() => {
-    // Prefer state if provided
     if (state?.orderMeta) return state.orderMeta;
-    // Only consider localStorage if it's clearly a package flow
     if (isPackageFlow) {
       try { return JSON.parse(localStorage.getItem('i101_order_meta') || '{}'); } catch { return {}; }
     }
-    // For tray-only flows, do NOT use localStorage (prevents stale summaries)
     return {};
   }, [state?.orderMeta, isPackageFlow]);
 
@@ -474,15 +471,11 @@ export default function Checkout() {
     Array.isArray(orderMeta?.lines) &&
     orderMeta.lines.length > 0;
 
-  /* Where to go when pressing Back */
+  /* Back destination */
   const derivedReturnTo = state?.returnTo || (isPackageFlow ? '/OrderPackage' : '/OrderTrays');
-  const handleBack = () => {
-    // Navigate back to the correct configurator step
-    nav(derivedReturnTo, { replace: true });
-  };
+  const handleBack = () => { nav(derivedReturnTo, { replace: true }); };
 
   const handleContinue = () => {
-    // Build a single ISO timestamp for the chosen slot
     const whenISO = buildWhenISO(pickupDate, pickupTime);
 
     const customer = {
@@ -516,16 +509,26 @@ export default function Checkout() {
     nav('/payment', { state: checkoutPayload });
   };
 
+  /* ---------- Mobile summary drawer state ---------- */
+  const [showSummaryMobile, setShowSummaryMobile] = useState(false);
+
   /* ---------- UI ---------- */
   return (
-    <div className="min-h-screen bg-[#1c1b1b] text-white p-6 pr-[24rem] relative">
-      {/* header (left of sidebar) */}
-      <div className="absolute top-4 right-[24rem] flex items-center gap-6 text-sm">
+    <div className="min-h-screen bg-[#1c1b1b] text-white p-4 md:p-6 md:pr-[24rem] relative">
+      {/* Header (desktop fixed, mobile inline) */}
+      <div className="hidden md:flex absolute top-4 right-[24rem] items-center gap-6 text-sm">
         {currentUser ? (
           <>
             <span>Welcome,&nbsp;{currentUser.signInDetails?.loginId ?? currentUser.username}</span>
             <button
-              onClick={async () => { try { await signOut({ global: true }); } catch {} localStorage.removeItem('i101_cart'); localStorage.removeItem('i101_customer'); sessionStorage.removeItem('i101_checkout'); sessionStorage.removeItem('i101_checkout_draft'); nav('/', { replace: true }); }}
+              onClick={async () => {
+                try { await signOut({ global: true }); } catch {}
+                localStorage.removeItem('i101_cart');
+                localStorage.removeItem('i101_customer');
+                sessionStorage.removeItem('i101_checkout');
+                sessionStorage.removeItem('i101_checkout_draft');
+                nav('/', { replace: true });
+              }}
               className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded"
             >
               Sign Out
@@ -534,19 +537,38 @@ export default function Checkout() {
         ) : null}
       </div>
 
-      {/* title first */}
-      <h1 className="text-3xl font-bold text-orange-400 mb-4">Checkout</h1>
+      {/* Mobile topbar sign-out (to match other pages) */}
+      <div className="md:hidden flex justify-end mb-2">
+        {currentUser ? (
+          <button
+            onClick={async () => {
+              try { await signOut({ global: true }); } catch {}
+              localStorage.removeItem('i101_cart');
+              localStorage.removeItem('i101_customer');
+              sessionStorage.removeItem('i101_checkout');
+              sessionStorage.removeItem('i101_checkout_draft');
+              nav('/', { replace: true });
+            }}
+            className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm"
+          >
+            Sign Out
+          </button>
+        ) : null}
+      </div>
 
-      {/* back under heading — now routes correctly */}
+      {/* title */}
+      <h1 className="text-2xl md:text-3xl font-bold text-orange-400 mb-3 md:mb-4 text-center md:text-left">Checkout</h1>
+
+      {/* back under heading */}
       <button
         onClick={handleBack}
-        className="mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+        className="mb-6 md:mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
       >
         ‹ Back
       </button>
 
-      {/* right sidebar (Summary → Codes → Options → Grand Total → Continue) */}
-      <aside className="fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
+      {/* Desktop Summary Sidebar */}
+      <aside className="hidden md:block fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
         <h2 className="text-xl font-semibold text-[#F58735] mb-3">Summary</h2>
         <ul className="space-y-1 text-sm mb-3">
           {summaryRows.map(([k, v]) => (
@@ -599,8 +621,8 @@ export default function Checkout() {
         )}
       </aside>
 
-      {/* ---- MAIN CONTENT: two columns (left forms / right date & time) ---- */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 max-w-5xl">
+      {/* ---- MAIN CONTENT ---- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10 max-w-5xl">
         {/* LEFT COLUMN */}
         <div className="space-y-8">
           {/* Tray Summary — only for valid package flows */}
@@ -637,7 +659,7 @@ export default function Checkout() {
               </label>
               <div className="block md:col-span-2">
                 <label className="block">Phone Number</label>
-                <div className="mt-1 flex items-center gap-2">
+                <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
                   <input
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
@@ -650,13 +672,13 @@ export default function Checkout() {
                     <button
                       onClick={startVerifyPhone}
                       disabled={!phone || phoneVerified || verifying}
-                      className={`text-xs px-3 py-1 rounded border ${
+                      className={`text-xs px-3 py-1 rounded border self-start sm:self-auto ${
                         phoneVerified ? 'opacity-40 cursor-not-allowed border-transparent' :
                         verifying ? 'opacity-60 cursor-wait border-[#F58735]' :
                         'border-[#F58735] hover:bg-[#3a3939]'
                       }`}
                     >
-                      {phoneVerified ? 'Verified ✓' : verifying ? 'Sending…' : 'Verify number using One-Time Passcode'}
+                      {phoneVerified ? 'Verified ✓' : verifying ? 'Sending…' : 'Verify using One-Time Passcode'}
                     </button>
                   )}
                 </div>
@@ -672,37 +694,40 @@ export default function Checkout() {
           {/* Payment */}
           <section>
             <h2 className="text-xl font-semibold mb-3">Payment</h2>
-            <label className="mr-6">
-              <input type="radio" value="cash" checked={payment==='cash'} onChange={() => setPayment('cash')} /> Cash
-            </label>
-            <label>
-              <input type="radio" value="card" checked={payment==='card'} onChange={() => setPayment('card')} /> Card
-            </label>
+            <div className="flex flex-wrap gap-4">
+              <label className="mr-6">
+                <input type="radio" value="cash" checked={payment==='cash'} onChange={() => setPayment('cash')} /> Cash
+              </label>
+              <label>
+                <input type="radio" value="card" checked={payment==='card'} onChange={() => setPayment('card')} /> Card
+              </label>
+            </div>
           </section>
 
           {/* Pickup / Delivery + Address + Distance */}
           <section>
             <h2 className="text-xl font-semibold mb-3">Pickup / Delivery</h2>
-            {/* Pickup stays enabled even when cash; Delivery alone gets disabled */}
-            <label className="mr-6">
-              <input
-                type="radio"
-                value="pickup"
-                checked={method==='pickup'}
-                onChange={() => setMethod('pickup')}
-              />{' '}
-              Pickup
-            </label>
-            <label className={`${payment==='cash' ? 'opacity-40 cursor-not-allowed' : ''}`}>
-              <input
-                type="radio"
-                value="delivery"
-                checked={method==='delivery'}
-                onChange={() => setMethod('delivery')}
-                disabled={payment==='cash'}
-              />{' '}
-              Delivery
-            </label>
+            <div className="flex flex-wrap gap-4">
+              <label>
+                <input
+                  type="radio"
+                  value="pickup"
+                  checked={method==='pickup'}
+                  onChange={() => setMethod('pickup')}
+                />{' '}
+                Pickup
+              </label>
+              <label className={`${payment==='cash' ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                <input
+                  type="radio"
+                  value="delivery"
+                  checked={method==='delivery'}
+                  onChange={() => setMethod('delivery')}
+                  disabled={payment==='cash'}
+                />{' '}
+                Delivery
+              </label>
+            </div>
 
             {method==='delivery' && (
               <div className="mt-4 space-y-3">
@@ -717,7 +742,7 @@ export default function Checkout() {
                 <input type="text" placeholder="Street address line 2"
                   value={addr2} onChange={e => setAddr2(e.target.value)}
                   className="w-full px-3 py-1 rounded text-black" />
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <input type="text" placeholder="City"
                     value={city} onChange={e => setCity(e.target.value)}
                     className="w-full px-3 py-1 rounded text-black" />
@@ -817,6 +842,86 @@ export default function Checkout() {
           </section>
         </div>
       </div>
+
+      {/* Mobile floating summary button */}
+      <button
+        onClick={() => setShowSummaryMobile(true)}
+        className="md:hidden fixed bottom-4 right-4 z-40 bg-[#F58735] hover:bg-orange-600 text-black rounded-full shadow-lg px-4 py-3 text-sm"
+      >
+        Summary • ${grandTotal.toFixed(2)}
+      </button>
+
+      {/* Mobile Summary Drawer */}
+      {showSummaryMobile && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowSummaryMobile(false)}
+          />
+          <div className="absolute right-0 top-0 h-full w-[92%] max-w-sm bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto translate-x-0 transition-transform">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-[#F58735]">Summary</h2>
+              <button
+                onClick={() => setShowSummaryMobile(false)}
+                className="text-gray-300 hover:text-white text-xl leading-none"
+                aria-label="Close summary"
+              >
+                ×
+              </button>
+            </div>
+
+            <ul className="space-y-1 text-sm mb-3">
+              {summaryRows.map(([k, v]) => (
+                <li key={`m-${k}`} className="flex justify-between">
+                  <span>{k}</span><span>{v}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Codes */}
+            <div className="mb-4">
+              <div className="text-sm font-semibold mb-2">Codes</div>
+              <label className="block mb-3 text-sm">
+                Agent Reference Code
+                <input value={refCode} onChange={e => setRefCode(e.target.value)} className="w-full mt-1 px-3 py-1 rounded text-black" />
+              </label>
+              <label className="block text-sm">
+                Discount Code
+                <input value={discCode} onChange={e => setDiscCode(e.target.value)} className="w-full mt-1 px-3 py-1 rounded text-black" />
+              </label>
+            </div>
+
+            {/* Options */}
+            <div className="mb-4">
+              <div className="text-sm font-semibold mb-2">Options</div>
+              <label className="block text-sm">
+                <input type="checkbox" checked={warmers} onChange={() => setWarmers(!warmers)} /> Sterno warmers (+$10)
+              </label>
+              <label className="block text-sm">
+                <input type="checkbox" checked={utensils} onChange={() => setUtensils(!utensils)} /> Serving utensils (+$10)
+              </label>
+            </div>
+
+            {/* Grand total + Continue */}
+            <div className="flex justify-between font-semibold py-2 border-t border-[#3a3939]">
+              <span>Grand&nbsp;Total</span><span>${grandTotal.toFixed(2)}</span>
+            </div>
+            <button
+              onClick={() => { setShowSummaryMobile(false); handleContinue(); }}
+              disabled={!ready}
+              className={`mt-2 w-full px-6 py-2 rounded transition-colors ${
+                ready ? 'bg-[#F58735] hover:bg-orange-600' : 'bg-gray-600 cursor-not-allowed'
+              }`}
+            >
+              Continue to Payment
+            </button>
+
+            {REQUIRE_PHONE_VERIFICATION && !phoneVerified && (
+              <p className="text-xs text-yellow-300 mt-2">Verify your phone number to continue.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Phone verify modal */}
       {codeModal && (

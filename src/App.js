@@ -26,7 +26,7 @@ function AppContent() {
   const location = useLocation();
 
   const fetchData = async () => {
-    const url = 'https://0lab8hw7af.execute-api.us-east-2.amazonaws.com/prod/get-products';
+    const url = 'https://0lab8hw7af.execute-api.us-east-2.amazonaws.com/get-products';
     try {
       const response = await fetch(url);
       const data = await response.json();

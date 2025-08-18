@@ -105,7 +105,7 @@ export default function IndexChooser() {
               Order Catering Trays
             </h2>
             <p className="text-sm text-gray-300">
-              Recommended for smaller or highly customised orders.
+              Recommended for smaller or highly customized orders.
             </p>
           </div>
           <span className="mt-6 self-end text-[#F58735] font-medium">Start →</span>

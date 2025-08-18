@@ -1,0 +1,12 @@
+{
+  "resourceName": "s3cateringstorage",
+  "policyUUID": "9ba8f106",
+  "bucketName": "catering-code-bucket",
+  "storageAccess": "auth",
+  "guestAccess": [],
+  "authAccess": [
+    "CREATE_AND_UPDATE"
+  ],
+  "triggerFunction": "NONE",
+  "groupAccess": {}
+}

@@ -1,0 +1,35 @@
+{
+  "aws_project_region": "us-east-1",
+  "aws_cognito_identity_pool_id": "us-east-1:2d795d48-1f64-4d8d-af5d-71048bf52f73",
+  "aws_cognito_region": "us-east-1",
+  "aws_user_pools_id": "us-east-1_sXWxj7Ftk",
+  "aws_user_pools_web_client_id": "3p3pvijka0mba8jktgi2q5p76i",
+  "oauth": {},
+  "aws_cognito_username_attributes": [],
+  "aws_cognito_social_providers": [],
+  "aws_cognito_signup_attributes": [
+    "EMAIL"
+  ],
+  "aws_cognito_mfa_configuration": "OFF",
+  "aws_cognito_mfa_types": [
+    "SMS"
+  ],
+  "aws_cognito_password_protection_settings": {
+    "passwordPolicyMinLength": 8,
+    "passwordPolicyCharacters": []
+  },
+  "aws_cognito_verification_mechanisms": [
+    "EMAIL"
+  ],
+  "aws_user_files_s3_bucket": "catering-code-bucket5e6fa-dev",
+  "aws_user_files_s3_bucket_region": "us-east-1",
+  "API": {
+    "endpoints": [
+      {
+        "name": "CateringAPI",
+        "endpoint": "https://0lab8hw7af.execute-api.us-east-2.amazonaws.com",
+        "region": "us-east-2"
+      }
+    ]
+  }
+}

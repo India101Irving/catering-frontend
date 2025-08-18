@@ -506,7 +506,7 @@ export default function OrderPackage() {
             <button onClick={handleSignOut} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded">Sign Out</button>
           </>
         ) : (
-          <button onClick={() => nav('/signin', { state: { returnTo: '/OrderPackage' } })} ...>
+          <button onClick={() => nav('/signin', { state: { returnTo: '/OrderPackage' } })}>
   Sign In / Create Account
 </button>
 

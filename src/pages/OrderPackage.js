@@ -121,9 +121,6 @@ export default function OrderPackage() {
   const [picks, setPicks] = useState({ appetizer: [], main: [], rice: [], bread: [], dessert: [] });
   const [open, setOpen]   = useState({ appetizer: true, main: false, rice: false, bread: false, dessert: false });
 
-  // mobile cart drawer
-  const [showCartMobile, setShowCartMobile] = useState(false);
-
   useEffect(() => {
     const init = async () => {
       try {
@@ -454,7 +451,7 @@ export default function OrderPackage() {
   const canContinue = cart.length > 0;
   const cartTotal = cart.reduce((s,c)=>s + c.qty*Number(c.unit),0);
 
-  // ------------- UI helpers -------------
+  // ------------- UI -------------
   function Collapse({ open, children }) {
     const innerRef = useRef(null);
     const [height, setHeight] = useState(0);
@@ -499,68 +496,25 @@ export default function OrderPackage() {
     );
   };
 
-  // ------------- RENDER -------------
   return (
-    <div className="min-h-screen bg-[#1c1b1b] text-white p-4 md:p-6 md:pr-[24rem] relative">
-      {/* Header (desktop fixed, mobile inline) */}
-      <div className="hidden md:flex absolute top-4 right-[24rem] items-center gap-4 text-sm">
+    <div className="min-h-screen bg-[#1c1b1b] text-white p-6 pr-[24rem] relative">
+      {/* Header */}
+      <div className="absolute top-4 right-[24rem] flex items-center gap-4 text-sm">
         {currentUser ? (
           <>
             <span>Welcome,&nbsp;{currentUser.signInDetails?.loginId ?? currentUser.username}</span>
             <button onClick={handleSignOut} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded">Sign Out</button>
           </>
         ) : (
-          <button onClick={() => setShowAuth(true)} className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded">
-            Sign In / Create Account
-          </button>
+          <button onClick={() => nav('/signin', { state: { returnTo: '/OrderPackage' } })} ...>
+  Sign In / Create Account
+</button>
+
         )}
       </div>
 
-      {/* Mobile topbar auth */}
-      <div className="md:hidden flex justify-end mb-2">
-        {currentUser ? (
-          <button onClick={handleSignOut} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm">
-            Sign Out
-          </button>
-        ) : (
-          <button onClick={() => setShowAuth(true)} className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded text-sm">
-            Sign In / Create Account
-          </button>
-        )}
-      </div>
-
-      {/* Title & Back */}
-      <h1 className="text-2xl md:text-3xl font-bold text-orange-400 text-center md:text-left">
-        India 101 Package Order
-      </h1>
-      <button
-        onClick={() => nav('/')}
-        className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
-      >
-        ‹ Return to menu
-      </button>
-
-      {/* Appetite & Guests */}
-      <div className="mt-1 md:mt-2 mb-4 md:mb-6 flex flex-col items-center md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-300">Appetite</span>
-          <AppetiteTabs />
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-300">Guests</label>
-          <input
-            type="number"
-            step={5}
-            min={15}
-            value={guests}
-            onChange={e => handleGuestChange(e.target.value)}
-            className="bg-[#2c2a2a] border border-[#3a3939] rounded px-3 py-2 w-24 md:w-28 text-right"
-          />
-        </div>
-      </div>
-
-      {/* Cart Pane — desktop */}
-      <aside className="hidden md:block fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
+      {/* Cart Pane */}
+      <aside className="fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
         <h2 className="text-xl font-semibold text-[#F58735] mb-4">Your Cart</h2>
         {cart.length === 0 ? (
           <p className="text-gray-400 mb-6">No items yet.</p>
@@ -594,7 +548,10 @@ export default function OrderPackage() {
             <button
               disabled={!canContinue}
               onClick={() => {
-                if (!currentUser) { setShowAuth(true); return; }
+if (!currentUser) {
+  nav('/signin', { state: { returnTo: '/checkout' } });
+  return;
+}
                 const meta = (() => {
                   try { return JSON.parse(localStorage.getItem('i101_order_meta') || '{}'); }
                   catch { return null; }
@@ -609,10 +566,59 @@ export default function OrderPackage() {
         )}
       </aside>
 
+      {/* Title & Back */}
+      <h1 className="text-3xl font-bold text-orange-400">India 101 Catering Wizard</h1>
+      <button
+        onClick={() => nav('/')}
+        className="mt-4 mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+      >
+        ‹ Return to menu
+      </button>
+
+      {/* Appetite & Guests */}
+      <div className="mt-2 mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-300">Appetite</span>
+          <AppetiteTabs />
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-gray-300">Guests</label>
+          <input
+            type="number"
+            step={5}
+            min={15}
+            value={guests}
+            onChange={e => handleGuestChange(e.target.value)}
+            className="bg-[#2c2a2a] border border-[#3a3939] rounded px-3 py-2 w-28 text-right"
+          />
+        </div>
+      </div>
+
+      {/* Packages */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+{(pkgConfig.packages?.length ? pkgConfig.packages : DEFAULT_PACKAGES).map(p => (
+          <button
+            key={p.id}
+            onClick={() => setSelection(p)}
+            className={`text-left rounded-xl border p-4 transition ${
+              selection?.id === p.id
+                ? 'bg-[#F58735]/10 border-[#F58735]'
+                : 'bg-[#272525] hover:bg-[#353232] border-[#F58735]/40'
+            }`}
+          >
+            <div className="text-lg font-semibold text-[#F58735]">{p.name}</div>
+            <div className="text-sm text-gray-300 mt-1">{p.priceLine}</div>
+            <div className="text-xs text-gray-400 mt-2 leading-relaxed">
+              {packageLineFromSlots(p.slots)}
+            </div>
+          </button>
+        ))}
+      </div>
+
       {/* Recommendation & live per-person price */}
-      <div className="mb-6 md:mb-8 rounded-xl border border-[#3a3939] bg-[#232222] p-4">
+      <div className="mb-8 rounded-xl border border-[#3a3939] bg-[#232222] p-4">
         <div className="font-medium mb-2">
-          Based on your appetite and selection, we recommend ordering the trays below:
+          Based on your appetite and selection — we recommend the trays below:
         </div>
         {!selectionsComplete ? (
           <div className="text-sm text-gray-400">
@@ -622,27 +628,27 @@ export default function OrderPackage() {
           <>
             <ul className="space-y-2 text-sm">
               {recommendation?.trays.map(t => (
-                <li key={`rec-${t.course}-${t.itemName}`} className="flex justify-between gap-2">
+                <li key={`rec-${t.course}-${t.itemName}`} className="flex justify-between">
                   <span className="text-gray-200">
                     {t.itemName} <span className="text-gray-400">({t.course})</span>
                   </span>
-                  <span className="text-gray-300 whitespace-nowrap">
+                  <span className="text-gray-300">
                     {t.allocation.map(a => `${sizeLabel(a.sizeKey)} × ${a.count}`).join(', ')}
                   </span>
                 </li>
               ))}
               {recommendation?.perPieceItems.map(pp => (
-                <li key={`rec-pp-${pp.course}-${pp.itemName}`} className="flex justify-between gap-2">
+                <li key={`rec-pp-${pp.course}-${pp.itemName}`} className="flex justify-between">
                   <span className="text-gray-200">
                     {pp.itemName} <span className="text-gray-400">({pp.course})</span>
                   </span>
-                  <span className="text-gray-300 whitespace-nowrap">Per Piece × {pp.pieces}</span>
+                  <span className="text-gray-300">Per Piece × {pp.pieces}</span>
                 </li>
               ))}
             </ul>
 
             {perPersonDynamic && (
-              <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="mt-4 flex items-center justify-between">
                 <div className="text-sm text-gray-300">
                   Package Price <span className="text-white font-semibold">
                     ${perPersonDynamic.perPersonWhole}
@@ -664,7 +670,7 @@ export default function OrderPackage() {
 
       {/* Customize sections */}
       <div className="max-w-5xl">
-        <h2 className="text-xl md:text-2xl font-semibold text-[#F58735] mb-3">Customize your menu</h2>
+        <h2 className="text-2xl font-semibold text-[#F58735] mb-3">Customize your menu</h2>
         {loading ? (
           <p>Loading menu…</p>
         ) : (
@@ -682,7 +688,7 @@ export default function OrderPackage() {
                     className="w-full flex items-center justify-between px-4 py-3 text-left"
                   >
                     <div className="flex items-center gap-3">
-                      <h3 className="text-lg md:text-xl font-semibold capitalize">{course}</h3>
+                      <h3 className="text-xl font-semibold capitalize">{course}</h3>
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${
                         (picked.length === need)
                           ? 'border-green-500/60 text-green-300'
@@ -737,90 +743,10 @@ export default function OrderPackage() {
         )}
       </div>
 
-      {/* Mobile floating cart button */}
-      <button
-        onClick={() => setShowCartMobile(true)}
-        className="md:hidden fixed bottom-4 right-4 z-40 bg-[#F58735] hover:bg-orange-600 text-black rounded-full shadow-lg px-4 py-3 text-sm flex items-center gap-2"
-      >
-        <span className="inline-block rounded-full bg-black/20 text-black px-2 py-0.5">
-          {cart.length}
-        </span>
-        Cart • ${cartTotal.toFixed(2)}
-      </button>
-
-      {/* Mobile Cart Drawer */}
-      {showCartMobile && (
-        <div className="md:hidden fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setShowCartMobile(false)}
-          />
-          <div className="absolute right-0 top-0 h-full w-[92%] max-w-sm bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto translate-x-0 transition-transform">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-[#F58735]">Your Cart</h2>
-              <button
-                onClick={() => setShowCartMobile(false)}
-                className="text-gray-300 hover:text-white text-xl leading-none"
-                aria-label="Close cart"
-              >
-                ×
-              </button>
-            </div>
-
-            {cart.length === 0 ? (
-              <p className="text-gray-400 mb-6">No items yet.</p>
-            ) : (
-              <>
-                <ul className="space-y-4">
-                  {cart.map(c => (
-                    <li key={`${c.id}-${c.size}`} className="text-sm">
-                      <div className="flex justify-between">
-                        <div>
-                          <div className="font-medium">{c.name}</div>
-                          <div className="text-gray-400">
-                            {c.sizeLabel} — {c.qty} × ${Number(c.unit).toFixed(2)}
-                          </div>
-                          {c.details && (
-                            <div className="text-xs text-gray-300 whitespace-pre-wrap mt-1">
-                              {c.details}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div>${(c.qty * Number(c.unit)).toFixed(2)}</div>
-                          <button onClick={() => removeItem(c.id, c.size)} className="text-xs text-red-400 hover:text-red-200">remove</button>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <hr className="my-4 border-[#3a3939]" />
-                <div className="text-right font-semibold mb-6">Total: ${cartTotal.toFixed(2)}</div>
-                <button
-                  disabled={!canContinue}
-                  onClick={() => {
-                    if (!currentUser) { setShowAuth(true); return; }
-                    const meta = (() => {
-                      try { return JSON.parse(localStorage.getItem('i101_order_meta') || '{}'); }
-                      catch { return null; }
-                    })();
-                    setShowCartMobile(false);
-                    nav('/checkout', { state: { cart, cartTotal, orderMeta: meta || null, returnTo: '/OrderPackage' } });
-                  }}
-                  className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Continue →
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Guest limit modal */}
       {showGuestLimit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-[#262525] border border-[#3a3939] rounded-xl p-5 max-w-md w-full mx-4">
+          <div className="bg-[#262525] border border-[#3a3939] rounded-xl p-5 max-w-md w-full">
             <h4 className="text-lg font-semibold text-[#F58735] mb-2">Heads up</h4>
             <p className="text-sm text-gray-200 mb-4">
               Online catering order limit is set to <b>100 guests</b>. For larger orders,
@@ -836,17 +762,6 @@ export default function OrderPackage() {
         </div>
       )}
 
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuth && !currentUser}
-        onClose={() => setShowAuth(false)}
-        onSuccess={async () => {
-          const me = await getCurrentUser().catch(() => null);
-          if (me) setCurrentUser(me);
-          setShowAuth(false);
-        }}
-        {...auth}
-      />
     </div>
   );
 }

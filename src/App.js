@@ -14,6 +14,9 @@ import Checkout from './pages/Checkout';
 import Payment from './pages/Payment';
 import ThankYou from './pages/ThankYou';
 
+import SignIn from './pages/SignIn';
+
+
 
 
 
@@ -77,6 +80,8 @@ function AppContent() {
     <Routes>
       {/* New 3-page customer flow */}
       <Route path="/" element={<IndexChooser />} />
+      <Route path="/signin" element={<SignIn />} />
+
       <Route path="/OrderTrays" element={<OrderTrays />} />
       <Route path="/OrderPackage" element={<OrderPackage />} />
 

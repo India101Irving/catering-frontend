@@ -17,7 +17,7 @@ export default function TrayCard({ item, onAdd }) {
   return (
     <div className="bg-[#2c2a2a] rounded-lg p-4 shadow">
       <h3 className="text-lg font-bold">{item.Item}</h3>
-      <p className="text-sm text-gray-400 mb-1">Group: {item.Group}</p>
+      <p className="text-sm text-gray-400 mb-1"></p>
 
       {item.Type === 'pc' ? (
         <p className="text-green-400 font-semibold mb-3">

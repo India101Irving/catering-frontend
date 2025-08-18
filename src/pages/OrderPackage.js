@@ -529,6 +529,36 @@ export default function OrderPackage() {
         )}
       </div>
 
+      {/* Title & Back */}
+      <h1 className="text-2xl md:text-3xl font-bold text-orange-400 text-center md:text-left">
+        India 101 Package Order
+      </h1>
+      <button
+        onClick={() => nav('/')}
+        className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+      >
+        ‹ Return to menu
+      </button>
+
+      {/* Appetite & Guests */}
+      <div className="mt-1 md:mt-2 mb-4 md:mb-6 flex flex-col items-center md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-300">Appetite</span>
+          <AppetiteTabs />
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-gray-300">Guests</label>
+          <input
+            type="number"
+            step={5}
+            min={15}
+            value={guests}
+            onChange={e => handleGuestChange(e.target.value)}
+            className="bg-[#2c2a2a] border border-[#3a3939] rounded px-3 py-2 w-24 md:w-28 text-right"
+          />
+        </div>
+      </div>
+
       {/* Cart Pane — desktop */}
       <aside className="hidden md:block fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
         <h2 className="text-xl font-semibold text-[#F58735] mb-4">Your Cart</h2>
@@ -578,55 +608,6 @@ export default function OrderPackage() {
           </>
         )}
       </aside>
-
-      {/* Title & Back */}
-      <h1 className="text-2xl md:text-3xl font-bold text-orange-400">India 101 Catering Wizard</h1>
-      <button
-        onClick={() => nav('/')}
-        className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
-      >
-        ‹ Return to menu
-      </button>
-
-      {/* Appetite & Guests */}
-      <div className="mt-1 md:mt-2 mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-300">Appetite</span>
-          <AppetiteTabs />
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-300">Guests</label>
-          <input
-            type="number"
-            step={5}
-            min={15}
-            value={guests}
-            onChange={e => handleGuestChange(e.target.value)}
-            className="bg-[#2c2a2a] border border-[#3a3939] rounded px-3 py-2 w-24 md:w-28 text-right"
-          />
-        </div>
-      </div>
-
-      {/* Packages */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-3">
-        {(pkgConfig.packages || DEFAULT_PACKAGES).map(p => (
-          <button
-            key={p.id}
-            onClick={() => setSelection(p)}
-            className={`text-left rounded-xl border p-4 transition ${
-              selection?.id === p.id
-                ? 'bg-[#F58735]/10 border-[#F58735]'
-                : 'bg-[#272525] hover:bg-[#353232] border-[#F58735]/40'
-            }`}
-          >
-            <div className="text-lg font-semibold text-[#F58735]">{p.name}</div>
-            <div className="text-sm text-gray-300 mt-1">{p.priceLine}</div>
-            <div className="text-xs text-gray-400 mt-2 leading-relaxed">
-              {packageLineFromSlots(p.slots)}
-            </div>
-          </button>
-        ))}
-      </div>
 
       {/* Recommendation & live per-person price */}
       <div className="mb-6 md:mb-8 rounded-xl border border-[#3a3939] bg-[#232222] p-4">

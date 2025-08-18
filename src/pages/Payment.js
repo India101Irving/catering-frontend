@@ -81,28 +81,26 @@ export default function Payment() {
     }))
     .filter(l => l.name && l.size && l.qty > 0);
 
-  // --- human friendly summary strings (often survive whitelists)
+  // --- human friendly summary strings
   const lineSummary = safeLines.map(l => `${l.name} — ${l.size} × ${l.qty}`);
 
- // --- concise tray summary WITH ITEM NAMES, grouped by (name,size)
-const packageTraySummary = (() => {
-  if (!safeLines.length) return '';
-  const map = new Map(); // key: `${name}||${size}` -> qty total
-  for (const l of safeLines) {
-    const key = `${l.name}||${l.size}`;
-    map.set(key, (map.get(key) || 0) + Number(l.qty || 0));
-  }
-  // Build "Item Name — Size × Qty" pieces, comma separated
-  return Array.from(map.entries())
-    .map(([key, qty]) => {
-      const [nm, sz] = key.split('||');
-      return `${nm} — ${sz} × ${qty}`;
-    })
-    .join(', ');
-})();
+  // --- concise tray summary WITH ITEM NAMES, grouped by (name,size)
+  const packageTraySummary = (() => {
+    if (!safeLines.length) return '';
+    const map = new Map();
+    for (const l of safeLines) {
+      const key = `${l.name}||${l.size}`;
+      map.set(key, (map.get(key) || 0) + Number(l.qty || 0));
+    }
+    return Array.from(map.entries())
+      .map(([key, qty]) => {
+        const [nm, sz] = key.split('||');
+        return `${nm} — ${sz} × ${qty}`;
+      })
+      .join(', ');
+  })();
 
-
-  // --- persistable orderMeta (keeps anything you already put plus normalized lines)
+  // --- persistable orderMeta
   const orderMeta = { ...orderMetaRaw, lines: safeLines, lineSummary, packageTraySummary };
 
   const baseTotals = (() => {
@@ -203,8 +201,8 @@ const packageTraySummary = (() => {
         return {
           ...base,
           name: `${base.name} — [${packageTraySummary}]`,
-          originalName: base.name,         // in case Lambda wants the untouched label
-          traySummary: packageTraySummary, // explicitly available
+          originalName: base.name,
+          traySummary: packageTraySummary,
         };
       }
       return base;
@@ -226,7 +224,7 @@ const packageTraySummary = (() => {
     grandTotal: Number(t.grandTotal) || 0,
   });
 
-  // ---- CARD: create Stripe session with a DRAFT (now includes lines/orderMeta and cartForApi) ----
+  // ---- CARD: create Stripe session ----
   const onConfirmPay = async () => {
     if (submittingCard) return;
     setSubmittingCard(true);
@@ -234,16 +232,16 @@ const packageTraySummary = (() => {
       const safeTotals = sanitizeTotals(totals);
 
       const draft = {
-        cart: cartForApi,                 // << use augmented cart
+        cart: cartForApi,
         totals: safeTotals,
         customer: payloadCustomer,
         payment: 'card',
         when: whenISO || null,
         whenEpoch: Number.isFinite(whenEpoch) ? whenEpoch : null,
-        lines: safeLines,                 // explicit structured tray lines
-        lineSummary,                      // human-friendly backup
-        orderMeta,                        // enriched meta (incl. packageTraySummary)
-        packageTraySummary,               // also stand-alone
+        lines: safeLines,
+        lineSummary,
+        orderMeta,
+        packageTraySummary,
       };
 
       const payload = {
@@ -274,13 +272,13 @@ const packageTraySummary = (() => {
     }
   };
 
-  // ---- CASH: create the real order immediately (now includes lines/orderMeta and cartForApi) ----
+  // ---- CASH: create the real order immediately ----
   const onConfirmCash = async () => {
     if (submittingCash) return;
     setSubmittingCash(true);
     try {
       const body = {
-        cart: cartForApi,  // << use augmented cart so Lambda always sees the breakdown
+        cart: cartForApi,
         totals: {
           cartTotal:  Number(totals.cartTotal)||0,
           deliveryFee:Number(totals.deliveryFee)||0,
@@ -294,12 +292,10 @@ const packageTraySummary = (() => {
         payment: 'cash',
         when: whenISO || null,
         whenEpoch: Number.isFinite(whenEpoch) ? whenEpoch : null,
-
-        // --- Put tray details in multiple places so the Lambda can’t miss them ---
-        lines: safeLines,             // structured list (name/size/qty)
-        lineSummary,                  // string list "Name — Size × Qty"
-        orderMeta,                    // full meta including packageTraySummary
-        packageTraySummary,           // stand-alone summary string
+        lines: safeLines,
+        lineSummary,
+        orderMeta,
+        packageTraySummary,
       };
 
       const res = await fetch(CREATE_ORDER_API, {
@@ -344,10 +340,13 @@ const packageTraySummary = (() => {
     </svg>
   );
 
+  /* -------- Mobile summary drawer state -------- */
+  const [showSummaryMobile, setShowSummaryMobile] = useState(false);
+
   return (
-    <div className="min-h-screen bg-[#1c1b1b] text-white p-6 pr-[24rem] relative">
-      {/* header */}
-      <div className="absolute top-4 right-[24rem] flex items-center gap-6 text-sm">
+    <div className="min-h-screen bg-[#1c1b1b] text-white p-4 md:p-6 md:pr-[24rem] relative">
+      {/* Header (desktop fixed, mobile inline) */}
+      <div className="hidden md:flex absolute top-4 right-[24rem] items-center gap-6 text-sm">
         {currentUser ? (
           <>
             <span>Welcome,&nbsp;{currentUser.signInDetails?.loginId ?? currentUser.username}</span>
@@ -358,17 +357,26 @@ const packageTraySummary = (() => {
         ) : null}
       </div>
 
+      {/* Mobile topbar sign-out */}
+      <div className="md:hidden flex justify-end mb-2">
+        {currentUser ? (
+          <button onClick={handleSignOut} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm">
+            Sign Out
+          </button>
+        ) : null}
+      </div>
+
       {/* title + back */}
-      <h1 className="text-3xl font-bold text-orange-400 mb-4">Review your order</h1>
+      <h1 className="text-2xl md:text-3xl font-bold text-orange-400 mb-3 md:mb-4 text-center md:text-left">Review your order</h1>
       <button
         onClick={() => nav('/checkout', { state: { cart, cartTotal: totals.cartTotal, orderMeta, returnTo }, replace: true })}
-        className="mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+        className="mb-6 md:mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
       >
         ‹ Back to checkout
       </button>
 
-      {/* sidebar */}
-      <aside className="fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:block fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
         <h2 className="text-xl font-semibold text-[#F58735] mb-3">Summary</h2>
         <ul className="space-y-1 text-sm mb-3">
           {summaryRows.map(([k, v]) => (
@@ -409,7 +417,7 @@ const packageTraySummary = (() => {
       </aside>
 
       {/* main grid (Tray Summary + Items + Details) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 max-w-5xl">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10 max-w-5xl">
         {/* LEFT: Tray Summary + Items */}
         <div className="space-y-6">
           {/* Tray Summary */}
@@ -467,7 +475,7 @@ const packageTraySummary = (() => {
 
               {payloadCustomer?.method === 'delivery' && payloadCustomer?.address ? (
                 <>
-                  <div className="border-t border-[#3a3939] pt-3" />
+                  <div className="border-top border-[#3a3939] pt-3" />
                   <DetailRow label="Deliver to">
                     <div className="space-y-0.5">
                       <div>{payloadCustomer.address.addr1}</div>
@@ -504,6 +512,73 @@ const packageTraySummary = (() => {
           </section>
         </div>
       </div>
+
+      {/* Mobile floating summary button */}
+      <button
+        onClick={() => setShowSummaryMobile(true)}
+        className="md:hidden fixed bottom-4 right-4 z-40 bg-[#F58735] hover:bg-orange-600 text-black rounded-full shadow-lg px-4 py-3 text-sm"
+      >
+        Summary • {currency(totals.grandTotal)}
+      </button>
+
+      {/* Mobile Summary Drawer */}
+      {showSummaryMobile && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowSummaryMobile(false)}
+          />
+          <div className="absolute right-0 top-0 h-full w-[92%] max-w-sm bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto translate-x-0 transition-transform">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-[#F58735]">Summary</h2>
+              <button
+                onClick={() => setShowSummaryMobile(false)}
+                className="text-gray-300 hover:text-white text-xl leading-none"
+                aria-label="Close summary"
+              >
+                ×
+              </button>
+            </div>
+
+            <ul className="space-y-1 text-sm mb-3">
+              {summaryRows.map(([k, v]) => (
+                <li key={`m-${k}`} className="flex justify-between">
+                  <span>{k}</span><span>{v}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-between font-semibold py-2 border-t border-[#3a3939]">
+              <span>Grand&nbsp;Total</span><span>{currency(totals.grandTotal)}</span>
+            </div>
+
+            {payment === 'card' ? (
+              <button
+                onClick={() => { setShowSummaryMobile(false); onConfirmPay(); }}
+                disabled={submittingCard}
+                aria-busy={submittingCard}
+                aria-disabled={submittingCard}
+                className={`mt-2 w-full px-6 py-2 rounded transition-colors ${
+                  submittingCard ? 'bg-gray-600 cursor-not-allowed pointer-events-none' : 'bg-[#F58735] hover:bg-orange-600'
+                }`}
+              >
+                {submittingCard ? (<><Spinner />Connecting to Stripe…</>) : 'Continue to Pay'}
+              </button>
+            ) : (
+              <button
+                onClick={() => { setShowSummaryMobile(false); onConfirmCash(); }}
+                disabled={submittingCash}
+                aria-busy={submittingCash}
+                aria-disabled={submittingCash}
+                className={`mt-2 w-full px-6 py-2 rounded transition-colors ${
+                  submittingCash ? 'bg-gray-600 cursor-not-allowed pointer-events-none' : 'bg-[#F58735] hover:bg-orange-600'
+                }`}
+              >
+                {submittingCash ? (<><Spinner />Placing order…</>) : 'Confirm Order'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

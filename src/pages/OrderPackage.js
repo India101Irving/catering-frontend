@@ -631,7 +631,7 @@ export default function OrderPackage() {
       {/* Recommendation & live per-person price */}
       <div className="mb-6 md:mb-8 rounded-xl border border-[#3a3939] bg-[#232222] p-4">
         <div className="font-medium mb-2">
-          Based on your appetite and selection — we recommend the trays below:
+          Based on your appetite and selection, we recommend ordering the trays below:
         </div>
         {!selectionsComplete ? (
           <div className="text-sm text-gray-400">

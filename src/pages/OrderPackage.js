@@ -9,8 +9,6 @@ import {
 import { DynamoDBClient, QueryCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { decodeJwt } from 'jose';
-import useAuth from '../hooks/useAuth';
-import AuthModal from '../components/AuthModal';
 
 // ----------------- DDB config table -----------------
 const TABLE_NAME   = 'catering-package-dev';
@@ -20,12 +18,18 @@ const PAYLOAD_ATTR = 'Payload';
 
 // ----------------- Defaults (fallback) -----------------
 const DEFAULT_PACKAGES = [
-  { id:'pkg-basic', name:'Basic Package', priceLine:'Starting $8/person',
-    slots: { appetizer:['A'], main:['A','A'], rice:['A'], bread:['A'], dessert:['A'] }, perPerson:8 },
-  { id:'pkg-classic', name:'Classic Package', priceLine:'Starting $12/person',
-    slots: { appetizer:['A'], main:['A','A','B'], rice:['B'], bread:['A'], dessert:['A'] }, perPerson:12 },
-  { id:'pkg-premium', name:'Premium Package', priceLine:'Starting $15/person',
-    slots: { appetizer:['A','B'], main:['A','B','C'], rice:['A','B'], bread:['A','B'], dessert:['A','B'] }, perPerson:15 },
+  { id:'pkg-basic', name:'Basic Package', nameShort:'Basic',
+    priceLine:'Starting $8/person',
+    slots: { appetizer:['A'], main:['A','A'], rice:['A'], bread:['A'], dessert:['A'] }, perPerson:8
+  },
+  { id:'pkg-classic', name:'Classic Package', nameShort:'Classic',
+    priceLine:'Starting $12/person',
+    slots: { appetizer:['A'], main:['A','A','B'], rice:['B'], bread:['A'], dessert:['A'] }, perPerson:12
+  },
+  { id:'pkg-premium', name:'Premium Package', nameShort:'Premium',
+    priceLine:'Starting $15/person',
+    slots: { appetizer:['A','B'], main:['A','B','C'], rice:['A','B'], bread:['A','B'], dessert:['A','B'] }, perPerson:15
+  },
 ];
 const DEFAULT_THRESHOLDS = { small: 15, medium: 25, large: 35, xl: 50 };
 const DEFAULT_HEAVY_BUMP = 5;
@@ -34,8 +38,6 @@ const GROUP_RANK = { A:1, B:2, C:3, D:4 };
 const APPETITES  = ['regular','heavy'];
 
 // ----------------- Utils -----------------
-const deepCopy = (o) => JSON.parse(JSON.stringify(o));
-
 const numToWord = (n) => {
   const m = {0:'Zero',1:'One',2:'Two',3:'Three',4:'Four',5:'Five',6:'Six',7:'Seven',8:'Eight',9:'Nine',10:'Ten',11:'Eleven',12:'Twelve'};
   return m[n] || String(n);
@@ -90,9 +92,7 @@ const sizeLabel = (sizeKey) => sizeKey === 'per-piece' ? 'Per Piece' : sizeKey.r
 
 export default function OrderPackage() {
   const nav  = useNavigate();
-  const auth = useAuth(() => {});
   const [currentUser, setCurrentUser] = useState(null);
-  const [showAuth,   setShowAuth]     = useState(false);
 
   // Admin-controlled config (from DynamoDB)
   const [pkgConfig, setPkgConfig] = useState({
@@ -120,9 +120,6 @@ export default function OrderPackage() {
   // picks per course
   const [picks, setPicks] = useState({ appetizer: [], main: [], rice: [], bread: [], dessert: [] });
   const [open, setOpen]   = useState({ appetizer: true, main: false, rice: false, bread: false, dessert: false });
-
-  // mobile cart drawer
-  const [showCartMobile, setShowCartMobile] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -487,21 +484,10 @@ export default function OrderPackage() {
     </div>
   );
 
-  const CourseHeaderBadge = ({ course }) => {
-    const need = (selection.slots?.[course] || []).length;
-    const complete = (picks[course]?.length || 0) === need && need > 0;
-    return (
-      <span className={`text-xs px-2 py-0.5 rounded-full border ${
-        complete ? 'border-green-500/60 text-green-300' : 'border-orange-400/60 text-orange-300'
-      }`}>
-        {complete ? '✓ Completed' : `Select ${numToWord(need)}`}
-      </span>
-    );
-  };
-
   // ------------- RENDER -------------
   return (
     <div className="min-h-screen bg-[#1c1b1b] text-white p-4 md:p-6 md:pr-[24rem] relative">
+
       {/* Header (desktop fixed, mobile inline) */}
       <div className="hidden md:flex absolute top-4 right-[24rem] items-center gap-4 text-sm">
         {currentUser ? (
@@ -510,8 +496,10 @@ export default function OrderPackage() {
             <button onClick={handleSignOut} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded">Sign Out</button>
           </>
         ) : (
-          <button onClick={() => nav('/signin', { state: { returnTo: '/OrderTrays' } })}
- className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded">
+          <button
+            onClick={() => nav('/signin', { state: { returnTo: '/OrderPackage' } })}
+            className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded"
+          >
             Sign In / Create Account
           </button>
         )}
@@ -524,41 +512,13 @@ export default function OrderPackage() {
             Sign Out
           </button>
         ) : (
-          <button onClick={() => nav('/signin', { state: { returnTo: '/OrderTrays' } })}
- className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded text-sm">
+          <button
+            onClick={() => nav('/signin', { state: { returnTo: '/OrderPackage' } })}
+            className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded text-sm"
+          >
             Sign In / Create Account
           </button>
         )}
-      </div>
-
-      {/* Title & Back */}
-      <h1 className="text-2xl md:text-3xl font-bold text-orange-400 text-center md:text-left">
-        India 101 Package Order
-      </h1>
-      <button
-        onClick={() => nav('/')}
-        className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
-      >
-        ‹ Return to menu
-      </button>
-
-      {/* Appetite & Guests */}
-      <div className="mt-1 md:mt-2 mb-4 md:mb-6 flex flex-col items-center md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-300">Appetite</span>
-          <AppetiteTabs />
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-300">Guests</label>
-          <input
-            type="number"
-            step={5}
-            min={15}
-            value={guests}
-            onChange={e => handleGuestChange(e.target.value)}
-            className="bg-[#2c2a2a] border border-[#3a3939] rounded px-3 py-2 w-24 md:w-28 text-right"
-          />
-        </div>
       </div>
 
       {/* Cart Pane — desktop */}
@@ -596,10 +556,10 @@ export default function OrderPackage() {
             <button
               disabled={!canContinue}
               onClick={() => {
-if (!currentUser) {
-  nav('/signin', { state: { returnTo: '/checkout' } });
-  return;
-}
+                if (!currentUser) {
+                  nav('/signin', { state: { returnTo: '/checkout' } });
+                  return;
+                }
                 const meta = (() => {
                   try { return JSON.parse(localStorage.getItem('i101_order_meta') || '{}'); }
                   catch { return null; }
@@ -613,6 +573,60 @@ if (!currentUser) {
           </>
         )}
       </aside>
+
+      {/* Title & Back (centered on mobile) */}
+      <div className="text-center md:text-left">
+        <h1 className="text-2xl md:text-3xl font-bold text-orange-400">India 101 Package Order</h1>
+      </div>
+      <div className="text-center md:text-left">
+        <button
+          onClick={() => nav('/')}
+          className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+        >
+          ‹ Return to menu
+        </button>
+      </div>
+
+      {/* Appetite & Guests (centered on mobile) */}
+ <div className="mt-1 md:mt-2 mb-4 md:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-center gap-4">
+  <div className="flex items-center gap-3 flex-1 justify-center sm:justify-end">
+    <span className="text-sm text-gray-300">Appetite</span>
+    <AppetiteTabs />
+  </div>
+  <div className="flex items-center gap-3 flex-1 justify-center sm:justify-start">
+    <label className="text-sm text-gray-300">Guests</label>
+    <input
+      type="number"
+      step={5}
+      min={15}
+      value={guests}
+      onChange={e => handleGuestChange(e.target.value)}
+      className="bg-[#2c2a2a] border border-[#3a3939] rounded px-3 py-2 w-24 md:w-28 text-right"
+    />
+  </div>
+</div>
+
+
+      {/* Packages (fallback to defaults if config missing) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-3">
+        {(pkgConfig.packages?.length ? pkgConfig.packages : DEFAULT_PACKAGES).map(p => (
+          <button
+            key={p.id}
+            onClick={() => setSelection(p)}
+            className={`text-left rounded-xl border p-4 transition ${
+              selection?.id === p.id
+                ? 'bg-[#F58735]/10 border-[#F58735]'
+                : 'bg-[#272525] hover:bg-[#353232] border-[#F58735]/40'
+            }`}
+          >
+            <div className="text-lg font-semibold text-[#F58735]">{p.name || p.nameShort}</div>
+            <div className="text-sm text-gray-300 mt-1">{p.priceLine}</div>
+            <div className="text-xs text-gray-400 mt-2 leading-relaxed">
+              {packageLineFromSlots(p.slots)}
+            </div>
+          </button>
+        ))}
+      </div>
 
       {/* Recommendation & live per-person price */}
       <div className="mb-6 md:mb-8 rounded-xl border border-[#3a3939] bg-[#232222] p-4">
@@ -744,83 +758,15 @@ if (!currentUser) {
 
       {/* Mobile floating cart button */}
       <button
-        onClick={() => setShowCartMobile(true)}
+        onClick={() => nav('/checkout', { state: { cart, cartTotal, orderMeta: (()=>{ try { return JSON.parse(localStorage.getItem('i101_order_meta') || '{}'); } catch { return null; } })() || null, returnTo: '/OrderPackage' } })}
         className="md:hidden fixed bottom-4 right-4 z-40 bg-[#F58735] hover:bg-orange-600 text-black rounded-full shadow-lg px-4 py-3 text-sm flex items-center gap-2"
+        disabled={!canContinue}
       >
         <span className="inline-block rounded-full bg-black/20 text-black px-2 py-0.5">
           {cart.length}
         </span>
         Cart • ${cartTotal.toFixed(2)}
       </button>
-
-      {/* Mobile Cart Drawer */}
-      {showCartMobile && (
-        <div className="md:hidden fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setShowCartMobile(false)}
-          />
-          <div className="absolute right-0 top-0 h-full w-[92%] max-w-sm bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto translate-x-0 transition-transform">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-[#F58735]">Your Cart</h2>
-              <button
-                onClick={() => setShowCartMobile(false)}
-                className="text-gray-300 hover:text-white text-xl leading-none"
-                aria-label="Close cart"
-              >
-                ×
-              </button>
-            </div>
-
-            {cart.length === 0 ? (
-              <p className="text-gray-400 mb-6">No items yet.</p>
-            ) : (
-              <>
-                <ul className="space-y-4">
-                  {cart.map(c => (
-                    <li key={`${c.id}-${c.size}`} className="text-sm">
-                      <div className="flex justify-between">
-                        <div>
-                          <div className="font-medium">{c.name}</div>
-                          <div className="text-gray-400">
-                            {c.sizeLabel} — {c.qty} × ${Number(c.unit).toFixed(2)}
-                          </div>
-                          {c.details && (
-                            <div className="text-xs text-gray-300 whitespace-pre-wrap mt-1">
-                              {c.details}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div>${(c.qty * Number(c.unit)).toFixed(2)}</div>
-                          <button onClick={() => removeItem(c.id, c.size)} className="text-xs text-red-400 hover:text-red-200">remove</button>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <hr className="my-4 border-[#3a3939]" />
-                <div className="text-right font-semibold mb-6">Total: ${cartTotal.toFixed(2)}</div>
-                <button
-                  disabled={!canContinue}
-                  onClick={() => {
-                    if (!currentUser) { setShowAuth(true); return; }
-                    const meta = (() => {
-                      try { return JSON.parse(localStorage.getItem('i101_order_meta') || '{}'); }
-                      catch { return null; }
-                    })();
-                    setShowCartMobile(false);
-                    nav('/checkout', { state: { cart, cartTotal, orderMeta: meta || null, returnTo: '/OrderPackage' } });
-                  }}
-                  className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Continue →
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Guest limit modal */}
       {showGuestLimit && (
@@ -840,7 +786,6 @@ if (!currentUser) {
           </div>
         </div>
       )}
-
-          </div>
+    </div>
   );
 }

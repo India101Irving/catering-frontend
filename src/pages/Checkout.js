@@ -557,15 +557,17 @@ export default function Checkout() {
       </div>
 
       {/* title */}
-      <h1 className="text-2xl md:text-3xl font-bold text-orange-400 mb-3 md:mb-4 text-center md:text-left">Checkout</h1>
-
-      {/* back under heading */}
-      <button
-        onClick={handleBack}
-        className="mb-6 md:mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
-      >
-        ‹ Back
-      </button>
+ <div className="text-center md:text-left">
+        <h1 className="text-2xl md:text-3xl font-bold text-orange-400">Checkout</h1>
+      </div>
+ <div className="text-center md:text-left">
+        <button
+          onClick={handleBack}
+          className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+        >
+          ‹ Back to Order
+        </button>
+      </div>
 
       {/* Desktop Summary Sidebar */}
       <aside className="hidden md:block fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">

@@ -367,13 +367,25 @@ export default function Payment() {
       </div>
 
       {/* title + back */}
-      <h1 className="text-2xl md:text-3xl font-bold text-orange-400 mb-3 md:mb-4 text-center md:text-left">Review your order</h1>
-      <button
-        onClick={() => nav('/checkout', { state: { cart, cartTotal: totals.cartTotal, orderMeta, returnTo }, replace: true })}
-        className="mb-6 md:mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
-      >
-        ‹ Back to checkout
-      </button>
+<div className="text-center md:text-left">
+  <h1 className="text-2xl md:text-3xl font-bold text-orange-400">
+    Review Your Order
+  </h1>
+</div>      
+
+<div className="text-center md:text-left mt-3 md:mt-4">
+  <button
+    onClick={() =>
+      nav('/checkout', {
+        state: { cart, cartTotal: totals.cartTotal, orderMeta, returnTo },
+        replace: true,
+      })
+    }
+    className="mb-6 md:mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+  >
+    ‹ Back to Checkout
+  </button>
+</div>
 
       {/* Desktop sidebar */}
       <aside className="hidden md:block fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">

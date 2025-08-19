@@ -211,16 +211,24 @@ export default function OrderTrays() {
             <div className="text-right font-semibold mb-6">
               Total: ${cartTotal.toFixed(2)}
             </div>
-            <button
-              disabled={cart.length === 0}
-              onClick={() => {
-                if (!currentUser) {
-  nav('/checkout', { state: { cart, cartTotal } });
-              }}
-              className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Continue →
-            </button>
+ <button
+  disabled={cart.length === 0}
+  onClick={() => {
+    if (cart.length === 0) return;
+    if (!currentUser) {
+      nav('/signin', { state: { returnTo: '/checkout' } });
+      return;
+    }
+    nav('/checkout', { state: { cart, cartTotal } });
+  }}
+  className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+>
+  Continue &rarr;
+</button>
+
+
+
+
           </>
         )}
       </aside>
@@ -337,16 +345,22 @@ export default function OrderTrays() {
                   Total: ${cartTotal.toFixed(2)}
                 </div>
                 <button
-                  disabled={cart.length === 0}
-                  onClick={() => {
-                    if (!currentUser) { setShowAuth(true); return; }
-                    setShowCartMobile(false);
-                    nav('/checkout', { state: { cart, cartTotal } });
-                  }}
-                  className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Continue →
-                </button>
+  disabled={cart.length === 0}
+  onClick={() => {
+    if (cart.length === 0) return;
+    if (!currentUser) {
+      setShowCartMobile(false);
+      nav('/signin', { state: { returnTo: '/checkout' } });
+      return;
+    }
+    setShowCartMobile(false);
+    nav('/checkout', { state: { cart, cartTotal } });
+  }}
+  className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+>
+  Continue &rarr;
+</button>
+
               </>
             )}
           </div>

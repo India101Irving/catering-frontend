@@ -234,15 +234,18 @@ export default function OrderTrays() {
       </aside>
 
       {/* Title & Back */}
-      <h1 className="text-2xl md:text-3xl font-bold text-orange-400 text-center md:text-left">
-        India 101 Tray Order
-      </h1>
-      <button
-        onClick={() => nav('/')}
-        className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
-      >
-        ‹ Back to menu
-      </button>
+   
+    <div className="text-center md:text-left">
+        <h1 className="text-2xl md:text-3xl font-bold text-orange-400">India 101 Tray Order</h1>
+      </div>
+      <div className="text-center md:text-left">
+        <button
+          onClick={() => nav('/')}
+          className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+        >
+          ‹ Start Over
+        </button>
+      </div>
 
       {/* Trays UI */}
       <p className="mb-4 md:mb-6 text-base md:text-lg text-center md:text-left">

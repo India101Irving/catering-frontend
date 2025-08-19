@@ -583,7 +583,7 @@ export default function OrderPackage() {
           onClick={() => nav('/')}
           className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
         >
-          ‹ Return to menu
+          ‹ Start Over
         </button>
       </div>
 

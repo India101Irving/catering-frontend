@@ -48,6 +48,15 @@ function buildWhenISO(dateISO, timeLabel) {
   return dt.toISOString();
 }
 
+// ---- Spice helpers ----
+const normalizeSpice = (v) => {
+  const s = String(v || '').trim().toLowerCase();
+  if (!s) return undefined;
+  if (s.startsWith('mild')) return 'Mild';
+  if (s.startsWith('spic')) return 'Spicy';
+  return 'Medium'; // default/fallback
+};
+
 export default function Payment() {
   const nav = useNavigate();
   const { state } = useLocation();
@@ -72,19 +81,41 @@ export default function Payment() {
   const orderMetaRaw = state?.orderMeta ?? fallback?.orderMeta ?? readOrderMeta();
   const rawLines = Array.isArray(orderMetaRaw?.lines) ? orderMetaRaw.lines : [];
 
-  // --- sanitize lines to plain JSON (name:string, size:string, qty:number)
+  // ---- spiceSelections (prefer what Checkout passed; otherwise derive) ----
+  const spiceSelections = useMemo(() => {
+    const passed = state?.spiceSelections ?? fallback?.spiceSelections;
+    if (Array.isArray(passed) && passed.length) return passed;
+
+    const derived = [];
+    // from package lines
+    (rawLines || []).forEach((ln) => {
+      const sl = ln?.SpiceLevel ?? ln?.spiceLevel ?? ln?.spice;
+      if (sl) derived.push({ name: ln.name, size: ln.size, qty: ln.qty, spiceLevel: normalizeSpice(sl), source: 'package' });
+    });
+    // from cart extras
+    (cart || []).forEach((c) => {
+      const sl = c?.extras?.spiceLevel;
+      if (sl) derived.push({ name: getItemName(c), size: getItemSize(c) || '', qty: getQty(c), spiceLevel: normalizeSpice(sl), source: 'trays' });
+    });
+    return derived;
+  }, [state?.spiceSelections, fallback?.spiceSelections, rawLines, cart]);
+
+  // --- sanitize lines (keep spiceLevel if present) ---
   const safeLines = rawLines
     .map(l => ({
       name: String(l?.name ?? '').trim(),
       size: String(l?.size ?? '').trim(),
       qty:  Number(l?.qty ?? l?.quantity ?? 0) || 0,
+      ...(l?.SpiceLevel || l?.spiceLevel ? { spiceLevel: normalizeSpice(l.SpiceLevel ?? l.spiceLevel) } : {}),
     }))
     .filter(l => l.name && l.size && l.qty > 0);
 
   // --- human friendly summary strings
-  const lineSummary = safeLines.map(l => `${l.name} — ${l.size} × ${l.qty}`);
+  const lineSummary = safeLines.map(l =>
+    `${l.name} — ${l.size} × ${l.qty}${l.spiceLevel ? ` (Spice: ${l.spiceLevel})` : ''}`
+  );
 
-  // --- concise tray summary WITH ITEM NAMES, grouped by (name,size)
+  // --- concise tray summary grouped by (name,size)
   const packageTraySummary = (() => {
     if (!safeLines.length) return '';
     const map = new Map();
@@ -141,12 +172,12 @@ export default function Payment() {
       const qty  = Number(it.qty ?? 1);
       const unit = Number(it.unit ?? 0);
       if (sizeMap.has(key)) sizeMap.get(key).qty += qty;
-      else sizeMap.set(key, { name, size, unit, qty });
+      else sizeMap.set(key, { name, size, unit, qty, spiceLevel: it?.extras?.spiceLevel ? normalizeSpice(it.extras.spiceLevel) : undefined });
     });
     const byName = new Map();
     for (const rec of sizeMap.values()) {
       const existing = byName.get(rec.name) ?? { name: rec.name, lines: [], subtotal: 0 };
-      existing.lines.push({ size: rec.size, unit: rec.unit, qty: rec.qty });
+      existing.lines.push({ size: rec.size, unit: rec.unit, qty: rec.qty, spiceLevel: rec.spiceLevel });
       existing.subtotal += rec.unit * rec.qty;
       byName.set(rec.name, existing);
     }
@@ -182,7 +213,7 @@ export default function Payment() {
     [customer, whenISO, whenEpoch]
   );
 
-  // ---- Build cartForApi with tray summary appended for package items ----
+  // ---- Build cartForApi with tray summary and spice per item (if any) ----
   const cartForApi = useMemo(() => {
     const isPackageItem = (it) => {
       const sz = (getItemSize(it) || '').toLowerCase();
@@ -195,6 +226,7 @@ export default function Payment() {
         size: getItemSize(it) || 'Tray',
         qty:  Number(it.qty ?? 1),
         unit: Number(it.unit ?? 0),
+        ...(it?.extras?.spiceLevel ? { spiceLevel: normalizeSpice(it.extras.spiceLevel) } : {}),
       };
 
       if (isPackageItem(it) && packageTraySummary) {
@@ -242,6 +274,7 @@ export default function Payment() {
         lineSummary,
         orderMeta,
         packageTraySummary,
+        spiceSelections, // NEW
       };
 
       const payload = {
@@ -288,7 +321,7 @@ export default function Payment() {
           subtotal:   Number(totals.subtotal)||0,
           grandTotal: Number(totals.grandTotal)||0,
         },
-        customer: payloadCustomer,
+        customer: payloadCustomer,            // contains specialRequest already
         payment: 'cash',
         when: whenISO || null,
         whenEpoch: Number.isFinite(whenEpoch) ? whenEpoch : null,
@@ -296,6 +329,7 @@ export default function Payment() {
         lineSummary,
         orderMeta,
         packageTraySummary,
+        spiceSelections,                      // NEW: top-level for easy ingestion
       };
 
       const res = await fetch(CREATE_ORDER_API, {
@@ -367,25 +401,25 @@ export default function Payment() {
       </div>
 
       {/* title + back */}
-<div className="text-center md:text-left">
-  <h1 className="text-2xl md:text-3xl font-bold text-orange-400">
-    Review Your Order
-  </h1>
-</div>      
+      <div className="text-center md:text-left">
+        <h1 className="text-2xl md:3xl font-bold text-orange-400">
+          Review Your Order
+        </h1>
+      </div>
 
-<div className="text-center md:text-left mt-3 md:mt-4">
-  <button
-    onClick={() =>
-      nav('/checkout', {
-        state: { cart, cartTotal: totals.cartTotal, orderMeta, returnTo },
-        replace: true,
-      })
-    }
-    className="mb-6 md:mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
-  >
-    ‹ Back to Checkout
-  </button>
-</div>
+      <div className="text-center md:text-left mt-3 md:mt-4">
+        <button
+          onClick={() =>
+            nav('/checkout', {
+              state: { cart, cartTotal: totals.cartTotal, orderMeta, returnTo, spiceSelections },
+              replace: true,
+            })
+          }
+          className="mb-6 md:mb-8 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+        >
+          ‹ Back to Checkout
+        </button>
+      </div>
 
       {/* Desktop sidebar */}
       <aside className="hidden md:block fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
@@ -430,7 +464,7 @@ export default function Payment() {
 
       {/* main grid (Tray Summary + Items + Details) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10 max-w-5xl">
-        {/* LEFT: Tray Summary + Items */}
+        {/* LEFT: Tray Summary + Items + Spice */}
         <div className="space-y-6">
           {/* Tray Summary */}
           {safeLines.length > 0 && (
@@ -440,7 +474,9 @@ export default function Payment() {
                 <ul className="text-sm space-y-1">
                   {safeLines.map((ln, idx) => (
                     <li key={`ln-${idx}`} className="flex justify-between">
-                      <span className="text-gray-200">{ln.name}</span>
+                      <span className="text-gray-200">
+                        {ln.name}{ln.spiceLevel ? <span className="text-gray-400"> (Spice: {ln.spiceLevel})</span> : null}
+                      </span>
                       <span className="text-gray-300">
                         {ln.size} × {ln.qty}
                       </span>
@@ -463,6 +499,7 @@ export default function Payment() {
                       <li key={li} className="flex justify-between">
                         <span className="text-gray-200">
                           {ln.size} <span className="text-gray-400">× {ln.qty}</span>
+                          {ln.spiceLevel ? <span className="text-gray-400"> • Spice: {ln.spiceLevel}</span> : null}
                         </span>
                         <span>${ln.unit.toFixed(2)} <span className="text-gray-400">each</span></span>
                       </li>
@@ -472,6 +509,23 @@ export default function Payment() {
               ))}
             </div>
           </section>
+
+          {/* Spice Preferences (explicit list) */}
+          {spiceSelections.length > 0 && (
+            <section>
+              <h2 className="text-xl font-semibold mb-3">Spice Preferences</h2>
+              <div className="bg-[#232222] border border-[#3a3939] rounded p-4">
+                <ul className="text-sm space-y-1">
+                  {spiceSelections.map((s, i) => (
+                    <li key={`sp-${i}`} className="flex justify-between">
+                      <span className="text-gray-200">{s.name}</span>
+                      <span className="text-gray-300">{s.spiceLevel || 'Medium'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )}
         </div>
 
         {/* RIGHT: Order details */}
@@ -513,6 +567,12 @@ export default function Payment() {
                     customer?.refCode ? `Ref: ${customer.refCode}` : null,
                     customer?.discCode ? `Discount: ${customer.discCode}` : null
                   ].filter(Boolean).join(' | ')}
+                </DetailRow>
+              )}
+
+              {payloadCustomer?.specialRequest && (
+                <DetailRow label="Special request">
+                  {payloadCustomer.specialRequest}
                 </DetailRow>
               )}
 

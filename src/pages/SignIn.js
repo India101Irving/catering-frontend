@@ -1,5 +1,4 @@
-// src/pages/SignIn.js
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getCurrentUser } from 'aws-amplify/auth';
 import useAuth from '../hooks/useAuth';
@@ -9,42 +8,83 @@ export default function SignIn() {
   const nav = useNavigate();
   const location = useLocation();
   const auth = useAuth(() => {});
-  const [open, setOpen] = useState(true); // open modal immediately
-  const next =
-    location.state?.returnTo ||
-    new URLSearchParams(location.search).get('next') ||
-    '/';
 
+  const [open, setOpen] = useState(true);
+
+  const next = useMemo(() => {
+    return (
+      location.state?.returnTo ||
+      new URLSearchParams(location.search).get('next') ||
+      '/'
+    );
+  }, [location.state, location.search]);
+
+  // Already signed in? go to next
   useEffect(() => {
-    // If already signed in, bounce to next
-    getCurrentUser().then(() => nav(next, { replace: true })).catch(() => {});
+    let mounted = true;
+    getCurrentUser()
+      .then(() => mounted && nav(next, { replace: true }))
+      .catch(() => {});
+    return () => { mounted = false; };
   }, [nav, next]);
+
+  const hasError = Boolean(auth?.loginError);
+
+  // Wrap login so modal keeps open on failure
+  const handleLoginWrapped = async () => {
+    const ok = await auth.handleLogin();
+    if (!ok && !open) setOpen(true);
+    return ok; // AuthModal should treat false as "stay open"
+  };
+
+  // Defensive: verify session before navigating
+  const verifySignedIn = async () => {
+    try { await getCurrentUser(); return true; } catch { return false; }
+  };
 
   return (
     <div className="min-h-screen bg-[#1c1b1b] text-white p-6 flex items-center justify-center relative">
-      {/* Subtle backdrop like your ThankYou page */}
       <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
+
       <div className="relative z-10 w-full max-w-lg">
-        {/* Title (kept simple; the modal itself matches your existing look) */}
-        <h1 className="text-2xl font-bold text-orange-400 mb-4 text-center">
+        <h1 className="text-2xl font-bold text-orange-400 mb-3 text-center">
           Sign In to Continue
         </h1>
 
-        {/* The exact same AuthModal component you already use */}
+        {/* Error banner (page-level, subtle) */}
+        {hasError && (
+          <div className="mb-3 text-center text-sm text-red-300">
+            {String(auth.loginError)}
+          </div>
+        )}
+
+        {/* IMPORTANT: spread {...auth} FIRST, then override with our props */}
         <AuthModal
           isOpen={open}
+          {...auth}
+          error={auth?.loginError}
+          handleLogin={handleLoginWrapped}
           onClose={() => {
+            // Treat any onClose as an explicit X (your modal calls this on X)
             setOpen(false);
+            auth?.clearLoginError?.();
             nav('/', { replace: true });
           }}
           onSuccess={async () => {
-            try { await getCurrentUser(); } catch {}
+            const ok = await verifySignedIn();
+            if (!ok) {
+              if (!open) setOpen(true);
+              return;
+            }
+            auth?.clearLoginError?.();
+            setOpen(false);
             nav(next, { replace: true });
           }}
-          {...auth}
+          onError={() => {
+            if (!open) setOpen(true);
+          }}
         />
 
-        {/* Fallback button if someone closes the modal or JS delays */}
         {!open && (
           <div className="bg-[#2c2a2a] border border-[#3a3939] rounded-2xl p-4 text-center">
             <p className="text-sm text-neutral-300 mb-3">

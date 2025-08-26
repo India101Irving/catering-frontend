@@ -13,6 +13,16 @@ import { decodeJwt } from 'jose';
 import useAuth   from '../hooks/useAuth';
 import AuthModal from '../components/AuthModal';
 import TrayCard  from '../components/TrayCard';
+import TraySizesModal from '../components/TraySizesModal'; // ⬅️ NEW
+import India101Logo from '../assets/India101_logo_HighRes.jpg';
+import CateringImg from '../assets/India101food.png';
+
+// helper: detect non-veg by name
+const isNonVeg = (name = '') => {
+  const n = String(name).toLowerCase();
+  const tokens = ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','shrimp'];
+  return tokens.some(t => n.includes(t));
+};
 
 export default function OrderTrays() {
   const nav      = useNavigate();
@@ -25,13 +35,23 @@ export default function OrderTrays() {
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const grouped = useMemo(
-    () => items.reduce((acc, it) => {
+  // Group + sort (Veg A→Z first, Non-Veg A→Z)
+  const grouped = useMemo(() => {
+    const out = items.reduce((acc, it) => {
       (acc[it.Category] = acc[it.Category] || []).push(it);
       return acc;
-    }, {}),
-    [items]
-  );
+    }, {});
+    Object.keys(out).forEach(cat => {
+      out[cat].sort((a, b) => {
+        const aNon = isNonVeg(a.Item);
+        const bNon = isNonVeg(b.Item);
+        if (aNon !== bNon) return aNon ? 1 : -1;
+        return String(a.Item).localeCompare(String(b.Item));
+      });
+    });
+    return out;
+  }, [items]);
+
   const categories = Object.keys(grouped);
   const [cat, setCat] = useState('');
 
@@ -49,6 +69,9 @@ export default function OrderTrays() {
 
   // mobile cart drawer
   const [showCartMobile, setShowCartMobile] = useState(false);
+
+  // tray sizes modal
+  const [showTrayInfo, setShowTrayInfo] = useState(false); // ⬅️ NEW
 
   useEffect(() => {
     const init = async () => {
@@ -104,26 +127,33 @@ export default function OrderTrays() {
     setItems(Items.map(unmarshall));
   };
 
-  const addToCart = (sizeKey, qty, unit, item) =>
+  // capture extras (incl. spiceLevel) and keep distinct IDs per spice
+  const addToCart = (sizeKey, qty, unit, item, extras = {}) =>
     setCart(prev => {
-      const i = prev.findIndex(c => c.id === item.Item && c.size === sizeKey);
+      const spice = extras?.spiceLevel || 'NA';
+      const lineId = `${item.Item}::${sizeKey}::${spice}`;
+      const i = prev.findIndex(c => c.lineId === lineId);
       if (i !== -1) {
         const n = [...prev]; n[i].qty += qty; return n;
       }
       return [...prev, {
-        id: item.Item,
+        lineId,
+        id: item.Item,           // for remove filter
         name: item.Item,
+        category: item.Category,
+        type: item.Type,         // 'pc' or tray
         size: sizeKey,
         sizeLabel: sizeKey === 'per-piece'
           ? 'Per Piece'
-          : sizeKey.replace(/([A-Z])/g, ' $1'),
+          : sizeKey.replace(/([A-Z])/g, ' $1').trim(),
         qty,
         unit,
+        extras,                  // includes spiceLevel
       }];
     });
 
-  const removeItem = (id, size) =>
-    setCart(p => p.filter(c => !(c.id === id && c.size === size)));
+  const removeLine = (lineId) =>
+    setCart(p => p.filter(c => c.lineId !== lineId));
 
   const handleSignOut = async () => {
     await amplifySignOut({ global:true });
@@ -188,17 +218,20 @@ export default function OrderTrays() {
           <>
             <ul className="space-y-4">
               {cart.map(c => (
-                <li key={`${c.id}-${c.size}`} className="text-sm flex justify-between">
+                <li key={`${c.lineId}`} className="text-sm flex justify-between">
                   <div>
                     <div className="font-medium">{c.name}</div>
                     <div className="text-gray-400">
-                      {c.qty} × {c.sizeLabel} @ ${c.unit}
+                      {c.qty} × {c.sizeLabel} @ ${Number(c.unit).toFixed(2)}
+                      {c.extras?.spiceLevel ? (
+                        <span className="ml-1">• Spice: {c.extras.spiceLevel}</span>
+                      ) : null}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div>${(c.qty * c.unit).toFixed(2)}</div>
+                    <div>${(c.qty * Number(c.unit)).toFixed(2)}</div>
                     <button
-                      onClick={() => removeItem(c.id, c.size)}
+                      onClick={() => removeLine(c.lineId)}
                       className="text-xs text-red-400 hover:text-red-200"
                     >
                       remove
@@ -208,52 +241,86 @@ export default function OrderTrays() {
               ))}
             </ul>
             <hr className="my-4 border-[#3a3939]" />
-            <div className="text-right font-semibold mb-6">
+            <div className="text-right font-semibold mb-3">
               Total: ${cartTotal.toFixed(2)}
             </div>
- <button
-  disabled={cart.length === 0}
-  onClick={() => {
-    if (cart.length === 0) return;
-    if (!currentUser) {
-      nav('/signin', { state: { returnTo: '/checkout' } });
-      return;
-    }
-    nav('/checkout', { state: { cart, cartTotal } });
-  }}
-  className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
->
-  Continue &rarr;
-</button>
-
-
-
-
+            <button
+              type="button"
+              onClick={() => setShowTrayInfo(true)}
+              className="w-full mb-3 border border-[#F58735] text-[#F58735] hover:bg-[#F58735]/10 px-4 py-2 rounded text-sm"
+            >
+              Learn about tray sizes
+            </button>
+            <button
+              disabled={cart.length === 0}
+              onClick={() => {
+                if (cart.length === 0) return;
+                if (!currentUser) {
+                  nav('/signin', { state: { returnTo: '/checkout' } });
+                  return;
+                }
+                nav('/checkout', { state: { cart, cartTotal } });
+              }}
+              className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Continue &rarr;
+            </button>
           </>
         )}
       </aside>
 
       {/* Title & Back */}
-   
-    <div className="text-center md:text-left">
-        <h1 className="text-2xl md:text-3xl font-bold text-orange-400">India 101 Tray Order</h1>
-      </div>
+             {/* ✅ Logo instead of text heading */}
+        <div className="flex items-center mb-4 md:mb-6 mt-3 md:mt-4">
+          <img
+            src={India101Logo}
+            alt="India 101 Logo"
+            className="h-12 md:h-16 object-contain"
+          />
+          <span className="ml-3 text-xl md:text-2xl font-bold text-orange-400">
+            Order Trays
+          </span>
+        </div>
       <div className="text-center md:text-left">
         <button
           onClick={() => nav('/')}
-          className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+          className="mt-3 md:mt-4 mb-2 md:mb-4 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
         >
           ‹ Start Over
         </button>
       </div>
 
-      {/* Trays UI */}
-      <p className="mb-4 md:mb-6 text-base md:text-lg text-center md:text-left">
-        Select tray size and quantity for each item:
-      </p>
+      {/* Trays UI header with learn button */}
+      <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <p className="text-base md:text-lg text-center md:text-left m-0">
+          Select tray size and quantity for each item:
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowTrayInfo(true)}
+          className="self-center md:self-auto border border-[#F58735] text-[#F58735] hover:bg-[#F58735]/10 px-4 py-2 rounded text-sm"
+        >
+          Learn about tray sizes
+        </button>
+      </div>
+
+      {loading ? (
+        <p>Loading menu…</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          {(grouped[cat] || []).map(it => (
+            <TrayCard
+              key={it.Item}
+              item={it}
+              // receive extras from TrayCard (contains spiceLevel when applicable)
+              onAdd={(size, qty, unit, extras) => addToCart(size, qty, unit, it, extras)}
+            />
+          ))}
+        </div>
+      )}
 
       {categories.length > 1 && (
-        <div className="mb-4 md:mb-6">
+        <div className="mt-4 md:mt-6">
           <div className="flex md:flex-wrap gap-2 md:gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
             {categories.map(c => (
               <button
@@ -269,20 +336,6 @@ export default function OrderTrays() {
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {loading ? (
-        <p>Loading menu…</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-          {(grouped[cat] || []).map(it => (
-            <TrayCard
-              key={it.Item}
-              item={it}
-              onAdd={(size, qty, unit) => addToCart(size, qty, unit, it)}
-            />
-          ))}
         </div>
       )}
 
@@ -322,18 +375,21 @@ export default function OrderTrays() {
               <>
                 <ul className="space-y-4">
                   {cart.map(c => (
-                    <li key={`${c.id}-${c.size}`} className="text-sm">
+                    <li key={`${c.lineId}`} className="text-sm">
                       <div className="flex justify-between">
                         <div>
                           <div className="font-medium">{c.name}</div>
                           <div className="text-gray-400">
                             {c.qty} × {c.sizeLabel} @ ${Number(c.unit).toFixed(2)}
+                            {c.extras?.spiceLevel ? (
+                              <span className="ml-1">• Spice: {c.extras.spiceLevel}</span>
+                            ) : null}
                           </div>
                         </div>
                         <div className="text-right">
                           <div>${(c.qty * Number(c.unit)).toFixed(2)}</div>
                           <button
-                            onClick={() => removeItem(c.id, c.size)}
+                            onClick={() => removeLine(c.lineId)}
                             className="text-xs text-red-400 hover:text-red-200"
                           >
                             remove
@@ -344,26 +400,32 @@ export default function OrderTrays() {
                   ))}
                 </ul>
                 <hr className="my-4 border-[#3a3939]" />
-                <div className="text-right font-semibold mb-6">
+                <div className="text-right font-semibold mb-3">
                   Total: ${cartTotal.toFixed(2)}
                 </div>
                 <button
-  disabled={cart.length === 0}
-  onClick={() => {
-    if (cart.length === 0) return;
-    if (!currentUser) {
-      setShowCartMobile(false);
-      nav('/signin', { state: { returnTo: '/checkout' } });
-      return;
-    }
-    setShowCartMobile(false);
-    nav('/checkout', { state: { cart, cartTotal } });
-  }}
-  className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
->
-  Continue &rarr;
-</button>
-
+                  type="button"
+                  onClick={() => setShowTrayInfo(true)}
+                  className="w-full mb-3 border border-[#F58735] text-[#F58735] hover:bg-[#F58735]/10 px-4 py-2 rounded text-sm"
+                >
+                  Learn about tray sizes
+                </button>
+                <button
+                  disabled={cart.length === 0}
+                  onClick={() => {
+                    if (cart.length === 0) return;
+                    if (!currentUser) {
+                      setShowCartMobile(false);
+                      nav('/signin', { state: { returnTo: '/checkout' } });
+                      return;
+                    }
+                    setShowCartMobile(false);
+                    nav('/checkout', { state: { cart, cartTotal } });
+                  }}
+                  className="w-full bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Continue &rarr;
+                </button>
               </>
             )}
           </div>
@@ -389,6 +451,9 @@ export default function OrderTrays() {
         }}
         {...auth}
       />
+
+      {/* Tray sizes modal */}
+      <TraySizesModal open={showTrayInfo} onClose={() => setShowTrayInfo(false)} />
     </div>
   );
 }

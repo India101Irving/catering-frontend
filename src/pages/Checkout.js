@@ -262,6 +262,9 @@ export default function Checkout() {
   const [refCode,  setRefCode]  = useState(draft?.customer?.refCode ?? '');
   const [discCode, setDiscCode] = useState(draft?.customer?.discCode ?? ''); // default
 
+  // NEW: special request comment (sidebar + mobile summary)
+  const [specialRequest, setSpecialRequest] = useState(draft?.customer?.specialRequest ?? '');
+
   const [saveDetails, setSaveDetails] = useState(!!saved);
 
   /* --- lead time & date window --- */
@@ -426,32 +429,6 @@ export default function Checkout() {
     try { await sendUserAttributeVerificationCode({ userAttributeKey: 'phone_number' }); } catch (err) { setVerifyError(err?.message || 'Could not resend code'); }
   };
 
-  /* ----- Ready / continue ----- */
-  const phoneOk = REQUIRE_PHONE_VERIFICATION ? (!!phone && phoneVerified) : true;
-  const canDeliverDistance = method !== 'delivery' || (distStatus !== 'out_of_range');
-  const hasAddress = method === 'pickup' || (!!addr1 && !!city && !!st && !!zip);
-  const hasSlot = !!pickupDate && !!pickupTime;
-  const ready = phoneOk && hasSlot && hasAddress && canDeliverDistance;
-
-  // keep a lightweight draft
-  useEffect(() => {
-    const draftCustomer = {
-      method,
-      pickupDate,
-      pickupTime,
-      distance,
-      address: { addr1, addr2, city, state: st, zip },
-      warmers,
-      utensils,
-      refCode,
-      discCode,
-    };
-    sessionStorage.setItem(
-      'i101_checkout_draft',
-      JSON.stringify({ customer: draftCustomer, payment })
-    );
-  }, [method, pickupDate, pickupTime, distance, addr1, addr2, city, st, zip, warmers, utensils, refCode, discCode, payment]);
-
   /* ===== orderMeta ===== */
   const isPackageFlow = useMemo(
     () => cart.some((it) => isPackageSize(getItemSize(it))),
@@ -471,9 +448,67 @@ export default function Checkout() {
     Array.isArray(orderMeta?.lines) &&
     orderMeta.lines.length > 0;
 
+  /* ---- collect spice selections from cart + package meta ---- */
+  const spiceSelections = useMemo(() => {
+    const out = [];
+    // From Package recommendation (lines)
+    (orderMeta?.lines || []).forEach((ln) => {
+      if (ln?.SpiceLevel) {
+        out.push({
+          name: ln.name,
+          size: ln.size,
+          qty: ln.qty,
+          spiceLevel: ln.SpiceLevel,
+          source: 'package',
+        });
+      }
+    });
+    // From Trays cart items (extras.spiceLevel)
+    cart.forEach((c) => {
+      const sl = c?.extras?.spiceLevel;
+      if (sl) {
+        out.push({
+          name: c.name,
+          size: c.size,
+          qty: c.qty,
+          spiceLevel: sl,
+          source: 'trays',
+        });
+      }
+    });
+    return out;
+  }, [orderMeta, cart]);
+
   /* Back destination */
   const derivedReturnTo = state?.returnTo || (isPackageFlow ? '/OrderPackage' : '/OrderTrays');
   const handleBack = () => { nav(derivedReturnTo, { replace: true }); };
+
+  // keep a lightweight draft
+  useEffect(() => {
+    const draftCustomer = {
+      method,
+      pickupDate,
+      pickupTime,
+      distance,
+      address: { addr1, addr2, city, state: st, zip },
+      warmers,
+      utensils,
+      refCode,
+      discCode,
+      specialRequest, // NEW
+    };
+    sessionStorage.setItem(
+      'i101_checkout_draft',
+      JSON.stringify({ customer: draftCustomer, payment })
+    );
+  }, [method, pickupDate, pickupTime, distance, addr1, addr2, city, st, zip, warmers, utensils, refCode, discCode, payment, specialRequest]);
+
+  /* ----- Ready / continue ----- */
+  const phoneOk = REQUIRE_PHONE_VERIFICATION ? (!!phone && phoneVerified) : true;
+  const canDeliverDistance = method !== 'delivery' || (distStatus !== 'out_of_range');
+  const hasAddress = method === 'pickup' || (!!addr1 && !!city && !!st && !!zip);
+  const hasSlot = !!pickupDate && !!pickupTime;
+  const ready = phoneOk && hasSlot && hasAddress && canDeliverDistance;
 
   const handleContinue = () => {
     const whenISO = buildWhenISO(pickupDate, pickupTime);
@@ -491,6 +526,7 @@ export default function Checkout() {
       warmers, utensils,
       refCode: refCode.trim(), discCode: discCode.trim(),
       addressVerified,
+      specialRequest: specialRequest.trim(), // NEW
     };
 
     const totals = { cartTotal, deliveryFee, addOnFee, discount, grandTotal };
@@ -503,7 +539,17 @@ export default function Checkout() {
       localStorage.removeItem('i101_customer');
     }
 
-    const checkoutPayload = { cart, customer, payment, totals, when: whenISO, orderMeta, returnTo: derivedReturnTo };
+    // Include spice selections explicitly, in addition to cart/orderMeta
+    const checkoutPayload = {
+      cart,
+      customer,
+      payment,
+      totals,
+      when: whenISO,
+      orderMeta,
+      returnTo: derivedReturnTo,
+      spiceSelections, // NEW
+    };
     sessionStorage.setItem('i101_checkout', JSON.stringify(checkoutPayload));
     sessionStorage.removeItem('i101_checkout_draft');
     nav('/payment', { state: checkoutPayload });
@@ -557,12 +603,12 @@ export default function Checkout() {
       </div>
 
       {/* title */}
- <div className="text-center md:text-left">
+      <div className="text-center md:text-left">
         <h1 className="text-2xl md:text-3xl font-bold text-orange-400">Checkout</h1>
       </div>
- <div className="text-center md:text-left">
+      <div className="text-center md:text-left">
         <button
-          onClick={handleBack}
+          onClick={derivedReturnTo ? () => nav(derivedReturnTo) : handleBack}
           className="mt-3 md:mt-4 mb-4 md:mb-6 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
         >
           ‹ Back to Order
@@ -579,6 +625,18 @@ export default function Checkout() {
             </li>
           ))}
         </ul>
+
+        {/* Special request (NEW) */}
+        <div className="mb-4">
+          <div className="text-sm font-semibold mb-2">Special request</div>
+          <textarea
+            rows={3}
+            value={specialRequest}
+            onChange={(e) => setSpecialRequest(e.target.value)}
+            className="w-full mt-1 px-3 py-2 rounded text-black"
+            placeholder="Allergies, delivery notes, gate codes, spice notes, etc."
+          />
+        </div>
 
         {/* Codes */}
         <div className="mb-4">
@@ -634,7 +692,10 @@ export default function Checkout() {
               <ul className="text-sm space-y-1">
                 {orderMeta.lines.map((ln, idx) => (
                   <li key={`ln-${idx}`} className="flex justify-between">
-                    <span className="text-gray-200">{ln.name}</span>
+                    <span className="text-gray-200">
+                      {ln.name}
+                      {ln.SpiceLevel ? <span className="text-gray-400"> (Spice: {ln.SpiceLevel})</span> : null}
+                    </span>
                     <span className="text-gray-300">
                       {ln.size === 'per-piece'
                         ? 'Per Piece'
@@ -879,6 +940,18 @@ export default function Checkout() {
                 </li>
               ))}
             </ul>
+
+            {/* Special request (NEW) */}
+            <div className="mb-4">
+              <div className="text-sm font-semibold mb-2">Special request</div>
+              <textarea
+                rows={3}
+                value={specialRequest}
+                onChange={(e) => setSpecialRequest(e.target.value)}
+                className="w-full mt-1 px-3 py-2 rounded text-black"
+                placeholder="Allergies, delivery notes, gate codes, spice notes, etc."
+              />
+            </div>
 
             {/* Codes */}
             <div className="mb-4">

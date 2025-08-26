@@ -9,6 +9,10 @@ import {
 import { DynamoDBClient, QueryCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { decodeJwt } from 'jose';
+import TraySizesModal from '../components/TraySizesModal'; // ⬅️ NEW
+// ✅ import assets
+import India101Logo from '../assets/India101_logo_HighRes.jpg';
+import CateringImg from '../assets/India101food.png';
 
 // ----------------- DDB config table -----------------
 const TABLE_NAME   = 'catering-package-dev';
@@ -63,7 +67,7 @@ const courseFromCategory = (cat = '') => {
   return 'main';
 };
 const isNonVegByName = (name = '') =>
-  ['chicken','goat','lamb','fish','shrimp'].some(w => String(name).toLowerCase().includes(w));
+  ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','shrimp'].some(w => String(name).toLowerCase().includes(w));
 
 const getFirstNumeric = (obj, keys) => {
   for (const k of keys) {
@@ -121,8 +125,17 @@ export default function OrderPackage() {
   const [picks, setPicks] = useState({ appetizer: [], main: [], rice: [], bread: [], dessert: [] });
   const [open, setOpen]   = useState({ appetizer: true, main: false, rice: false, bread: false, dessert: false });
 
-  // NEW: mobile cart drawer toggle
+  // Mobile cart drawer
   const [showCartMobile, setShowCartMobile] = useState(false);
+
+  // Unavailable item modal
+  const [showUnavailable, setShowUnavailable] = useState(false);
+
+  // 🔸 spice levels for recommended MAIN course trays (keyed by item name)
+  const [spiceLevels, setSpiceLevels] = useState({}); // { [itemName]: 'Mild'|'Medium'|'Spicy' }
+
+  // 🔸 NEW: tray sizes modal
+  const [showTrayInfo, setShowTrayInfo] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -209,7 +222,7 @@ export default function OrderPackage() {
     localStorage.removeItem('i101_cart');
   };
 
-  // build menus per course
+  // build menus per course (Veg A→Z first, then Non-Veg A→Z)
   const { courseMenus } = useMemo(() => {
     const menus = { appetizer: [], main: [], rice: [], bread: [], dessert: [] };
     items.forEach(it => {
@@ -226,14 +239,15 @@ export default function OrderPackage() {
       });
     });
     Object.keys(menus).forEach(k => {
-      menus[k].sort((a, b) =>
-        (GROUP_RANK[a.group] - GROUP_RANK[b.group]) || a.name.localeCompare(b.name)
-      );
+      menus[k].sort((a, b) => {
+        if (a.nonVeg !== b.nonVeg) return a.nonVeg ? 1 : -1; // veg first
+        return a.name.localeCompare(b.name);
+      });
     });
     return { courseMenus: menus };
   }, [items]);
 
-  // slot feasibility (hidden)
+  // slot feasibility
   const canAddPick = (course, item) => {
     const slots = selection.slots?.[course] || [];
     const desiredGroup = (item.group || 'A').toUpperCase();
@@ -268,14 +282,22 @@ export default function OrderPackage() {
   };
 
   const togglePick = (course, item) => {
+    // clicking a greyed item? -> show modal
+    const selected = picks[course] || [];
+    const exists = selected.find(p => p.key === item.key);
+    const wouldViolate = !exists && !canAddPick(course, item);
+    const disabled = wouldViolate || (!exists && selected.length >= (selection.slots?.[course] || []).length);
+    if (disabled && !exists) {
+      setShowUnavailable(true);
+      return;
+    }
+
     setPicks(prev => {
-      const selected = prev[course] || [];
-      const exists = selected.find(p => p.key === item.key);
+      const sel = prev[course] || [];
       if (exists) {
-        return { ...prev, [course]: selected.filter(p => p.key !== item.key) };
+        return { ...prev, [course]: sel.filter(p => p.key !== item.key) };
       } else {
-        if (!canAddPick(course, item)) return prev;
-        const updated = { ...prev, [course]: [...selected, item] };
+        const updated = { ...prev, [course]: [...sel, item] };
         const need = (selection.slots?.[course] || []).length;
         if (updated[course].length === need) {
           const next = nextIncompleteCourse(updated);
@@ -365,6 +387,20 @@ export default function OrderPackage() {
     [selectionsComplete, picks, guests, appetite, selection, pkgConfig]
   );
 
+  // ensure spice defaults exist whenever recommendation changes
+  useEffect(() => {
+    if (!recommendation) return;
+    setSpiceLevels(prev => {
+      const next = { ...prev };
+      recommendation.trays.forEach(t => {
+        if (t.course === 'main') {
+          if (!next[t.itemName]) next[t.itemName] = 'Medium';
+        }
+      });
+      return next;
+    });
+  }, [recommendation]);
+
   // hidden price calc → rounded to $20 → per-person whole dollars
   const perPersonDynamic = useMemo(() => {
     if (!recommendation || guests <= 0) return null;
@@ -382,7 +418,7 @@ export default function OrderPackage() {
     return { totalRaw: total, roundedTotal: roundedTo20, perPersonWhole };
   }, [recommendation, guests]);
 
-  // add package to cart + persist meta.lines
+  // add package to cart + persist meta.lines (includes SpiceLevel on MAIN dishes)
   const addPerPersonPackageToCart = () => {
     if (!recommendation || !perPersonDynamic) return;
 
@@ -418,6 +454,7 @@ export default function OrderPackage() {
         qty: a.count,
         unit: getTrayPrice(t.raw || {}, a.sizeKey) || 0,
         kind: 'tray',
+        ...(t.course === 'main' && spiceLevels?.[t.itemName] ? { SpiceLevel: spiceLevels[t.itemName] } : {}),
       }))),
       ...recommendation.perPieceItems.map(pp => ({
         id: (pp.raw?.Item || pp.raw?.SKU || pp.itemName),
@@ -557,7 +594,7 @@ export default function OrderPackage() {
             <hr className="my-4 border-[#3a3939]" />
             <div className="text-right font-semibold mb-6">Total: ${cartTotal.toFixed(2)}</div>
             <button
-              disabled={!canContinue}
+              disabled={!cart.length}
               onClick={() => {
                 if (!currentUser) {
                   nav('/signin', { state: { returnTo: '/checkout' } });
@@ -577,10 +614,17 @@ export default function OrderPackage() {
         )}
       </aside>
 
-      {/* Title & Back (centered on mobile) */}
-      <div className="text-center md:text-left">
-        <h1 className="text-2xl md:text-3xl font-bold text-orange-400">India 101 Package Order</h1>
-      </div>
+            {/* ✅ Logo instead of text heading */}
+        <div className="flex items-center mb-4 md:mb-6 mt-3 md:mt-4">
+          <img
+            src={India101Logo}
+            alt="India 101 Logo"
+            className="h-12 md:h-16 object-contain"
+          />
+          <span className="ml-3 text-xl md:text-2xl font-bold text-orange-400">
+            Order Packages
+          </span>
+        </div>
       <div className="text-center md:text-left">
         <button
           onClick={() => nav('/')}
@@ -590,7 +634,7 @@ export default function OrderPackage() {
         </button>
       </div>
 
-      {/* Appetite & Guests (centered on mobile) */}
+      {/* Appetite & Guests */}
       <div className="mt-1 md:mt-2 mb-4 md:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-center gap-4">
         <div className="flex items-center gap-3 flex-1 justify-center sm:justify-end">
           <span className="text-sm text-gray-300">Appetite</span>
@@ -643,13 +687,40 @@ export default function OrderPackage() {
           <>
             <ul className="space-y-2 text-sm">
               {recommendation?.trays.map(t => (
-                <li key={`rec-${t.course}-${t.itemName}`} className="flex justify-between gap-2">
-                  <span className="text-gray-200">
+                <li key={`rec-${t.course}-${t.itemName}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="text-gray-200">
                     {t.itemName} <span className="text-gray-400">({t.course})</span>
-                  </span>
-                  <span className="text-gray-300 whitespace-nowrap">
-                    {t.allocation.map(a => `${sizeLabel(a.sizeKey)} × ${a.count}`).join(', ')}
-                  </span>
+                  </div>
+                  <div className="flex items-center gap-3 justify-between">
+                    <span className="text-gray-300 whitespace-nowrap">
+                      {t.allocation.map(a => `${sizeLabel(a.sizeKey)} × ${a.count}`).join(', ')}
+                    </span>
+                    {/* Spice selector for MAIN course trays */}
+                    {t.course === 'main' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Spice:</span>
+                        {['Mild','Medium','Spicy'].map(lvl => {
+                          const active = (spiceLevels[t.itemName] || 'Medium') === lvl;
+                          return (
+                            <button
+                              key={`${t.itemName}-${lvl}`}
+                              type="button"
+                              onClick={() => setSpiceLevels(s => ({ ...s, [t.itemName]: lvl }))}
+                              className={[
+                                "px-2.5 py-0.5 rounded-full text-xs border transition",
+                                active
+                                  ? "bg-[#F58735] border-[#F58735] text-black"
+                                  : "bg-[#3a3939] border-[#4a4949] text-white hover:bg-[#4a4949]"
+                              ].join(' ')}
+                              aria-pressed={active}
+                            >
+                              {lvl}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </li>
               ))}
               {recommendation?.perPieceItems.map(pp => (
@@ -670,6 +741,14 @@ export default function OrderPackage() {
                   </span> / per person
                 </div>
                 <div className="flex gap-2">
+                  {/* ⬇️ NEW button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowTrayInfo(true)}
+                    className="border border-[#F58735] text-[#F58735] hover:bg-[#F58735]/10 px-4 py-2 rounded"
+                  >
+                    Learn about tray sizes
+                  </button>
                   <button
                     onClick={addPerPersonPackageToCart}
                     className="bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded"
@@ -727,7 +806,8 @@ export default function OrderPackage() {
                           return (
                             <div
                               key={`${course}-${it.key}`}
-                              onClick={() => { if (!disabled || active) togglePick(course, it); }}
+                              title={it.raw?.Description || ''} /* show description on hover */
+                              onClick={() => { togglePick(course, it); }}
                               className={`rounded-lg border p-3 cursor-pointer transition ${
                                 active
                                   ? 'bg-[#F58735]/15 border-[#F58735]'
@@ -735,6 +815,9 @@ export default function OrderPackage() {
                                   ? 'bg-[#201f1f] border-[#3a3939] opacity-60'
                                   : 'bg-[#272525] hover:bg-[#353232] border-[#3a3939]'
                               }`}
+                              onMouseDown={(e) => {
+                                if (disabled && !active) e.preventDefault();
+                              }}
                             >
                               <div className="font-medium flex items-center gap-2">
                                 <span>{it.name}</span>
@@ -758,7 +841,7 @@ export default function OrderPackage() {
         )}
       </div>
 
-      {/* Mobile floating cart button (now opens drawer, doesn't navigate) */}
+      {/* Mobile floating cart button */}
       <button
         onClick={() => setShowCartMobile(true)}
         className="md:hidden fixed bottom-4 right-4 z-40 bg-[#F58735] hover:bg-orange-600 text-black rounded-full shadow-lg px-4 py-3 text-sm flex items-center gap-2"
@@ -851,6 +934,27 @@ export default function OrderPackage() {
           </div>
         </div>
       )}
+
+      {/* Unavailable item modal */}
+      {showUnavailable && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-[#262525] border border-[#3a3939] rounded-xl p-5 max-w-md w-full mx-4">
+            <h4 className="text-lg font-semibold text-[#F58735] mb-2">Not available in this package</h4>
+            <p className="text-sm text-gray-200 mb-4">
+              This item is not available under the selected package. Please use the tray ordering system
+              to place an order for this item or upgrade your package.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowUnavailable(false)} className="bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded">
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tray sizes modal */}
+      <TraySizesModal open={showTrayInfo} onClose={() => setShowTrayInfo(false)} />
 
       {/* Guest limit modal */}
       {showGuestLimit && (

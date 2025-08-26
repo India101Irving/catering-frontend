@@ -67,7 +67,7 @@ const courseFromCategory = (cat = '') => {
   return 'main';
 };
 const isNonVegByName = (name = '') =>
-  ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','shrimp'].some(w => String(name).toLowerCase().includes(w));
+  ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','ghost', 'maans','macchi','sea food', 'shrimp'].some(w => String(name).toLowerCase().includes(w));
 
 const getFirstNumeric = (obj, keys) => {
   for (const k of keys) {

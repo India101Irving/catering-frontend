@@ -20,7 +20,7 @@ import CateringImg from '../assets/India101food.png';
 // helper: detect non-veg by name
 const isNonVeg = (name = '') => {
   const n = String(name).toLowerCase();
-  const tokens = ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','shrimp'];
+  const tokens = ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','ghost', 'maans','macchi','sea food', 'shrimp'];
   return tokens.some(t => n.includes(t));
 };
 

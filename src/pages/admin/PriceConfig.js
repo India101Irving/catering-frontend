@@ -1,12 +1,19 @@
-// Configuration.js
+// PriceConfig.js
 import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { DynamoDBClient, PutItemCommand, DeleteItemCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
-import { marshall } from '@aws-sdk/util-dynamodb';
+import {
+  DynamoDBClient,
+  PutItemCommand,
+  DeleteItemCommand,
+  ScanCommand,
+  QueryCommand,            // <-- NEW
+} from '@aws-sdk/client-dynamodb';
+import { marshall, unmarshall } from '@aws-sdk/util-dynamodb'; // <-- UPDATED
 
 const REGION = 'us-east-2';
 const CUSTOMER_PRICING_TABLE = 'catering-customer-pricing';
+const ADMIN_TABLE = 'catering-dev'; // <-- NEW
 
 export default function Configuration({
   user,
@@ -63,14 +70,68 @@ export default function Configuration({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // --- Description helpers ---
+  const getDescriptionFromItem = (item) =>
+    (item?.Description ?? item?.description ?? '').toString();
+
+  // Pull all ADMIN items from catering-dev and build a map: "Category#Group#ItemName" -> Description
+  const fetchAdminDescriptionMap = async (client) => {
+    const map = new Map();
+
+    // Query PK = 'ADMIN'
+    const resp = await client.send(
+      new QueryCommand({
+        TableName: ADMIN_TABLE,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: { ':pk': { S: 'ADMIN' } },
+      })
+    );
+
+    (resp.Items || []).forEach((av) => {
+      const it = unmarshall(av);
+      const sk = it.SK || `${it.Category}#${it.Group}#${it.ItemName}`;
+      if (sk && typeof it.Description === 'string' && it.Description.trim()) {
+        map.set(sk, it.Description.trim());
+      }
+    });
+
+    // In case of pagination
+    let lastKey = resp.LastEvaluatedKey;
+    while (lastKey) {
+      const next = await client.send(
+        new QueryCommand({
+          TableName: ADMIN_TABLE,
+          KeyConditionExpression: 'PK = :pk',
+          ExpressionAttributeValues: { ':pk': { S: 'ADMIN' } },
+          ExclusiveStartKey: lastKey,
+        })
+      );
+      (next.Items || []).forEach((av) => {
+        const it = unmarshall(av);
+        const sk = it.SK || `${it.Category}#${it.Group}#${it.ItemName}`;
+        if (sk && typeof it.Description === 'string' && it.Description.trim()) {
+          map.set(sk, it.Description.trim());
+        }
+      });
+      lastKey = next.LastEvaluatedKey;
+    }
+
+    return map;
+  };
+
   // Build data rows for Excel + DynamoDB
-  const buildPricingPayload = () => {
+  const buildPricingPayload = (descriptionMap) => {
     const rows = [];
     Object.entries(products).forEach(([category, items]) => {
       items.forEach((item) => {
         const cost = Number(item.UnitPrice || 0);
         const saleOneOz = cost * (1 + margin / 100);
         const type = (item.Type || '').toLowerCase();
+
+        // Prefer description from products; else fallback to admin-table map
+        const sk = `${category}#${item.Group}#${item.ItemName}`;
+        const description =
+          getDescriptionFromItem(item) || descriptionMap.get(sk) || '';
 
         if (type === 'pc') {
           rows.push({
@@ -80,6 +141,7 @@ export default function Configuration({
             Type: 'pc',
             Group: item.Group,
             SalePrice: parseFloat(calcPcPrice(saleOneOz)),
+            Description: description, // <-- include on deploy
           });
         } else if (type === 'oz') {
           const trayCols = {};
@@ -93,6 +155,7 @@ export default function Configuration({
             Category: category,
             Type: 'oz',
             Group: item.Group,
+            Description: description, // <-- include on deploy
             ...trayCols,
           });
         }
@@ -101,9 +164,17 @@ export default function Configuration({
     return rows;
   };
 
-  // Excel Export
+  // Excel Export (unchanged — still omits Description from the sheet)
   const handleExportExcel = () => {
-    const data = buildPricingPayload();
+    // Note: Export stays as-is per your request; no Description column
+    const data = []; // we don't need the description for the Excel
+    const tmpRows = buildPricingPayload(new Map()); // build without needing a real map
+    tmpRows.forEach((r) => {
+      // Strip Description for export
+      const { Description, ...rest } = r;
+      data.push(rest);
+    });
+
     const header = ['Category','Item','Type','Group','SalePrice', ...traySizes.map(t=>t.name.replace(/\s+/g,''))];
     const rows = data.map(r => header.map(h => r[h] ?? ''));
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
@@ -127,11 +198,14 @@ export default function Configuration({
         },
       });
 
-      // build new records
-      const newItems = buildPricingPayload();
+      // 1) Build a map of descriptions from catering-dev in case products[] items lack it
+      const descriptionMap = await fetchAdminDescriptionMap(client);
+
+      // 2) Build new records (with Description included)
+      const newItems = buildPricingPayload(descriptionMap);
       const newKeys  = new Set(newItems.map((i) => i.Item));
 
-      // get existing records
+      // 3) Get existing records
       const existing = await client.send(
         new ScanCommand({
           TableName: CUSTOMER_PRICING_TABLE,
@@ -146,7 +220,7 @@ export default function Configuration({
         .map((it) => it.Item.S)
         .filter((name) => !newKeys.has(name));
 
-      // delete obsolete rows
+      // 4) Delete obsolete rows
       await Promise.all(
         toDelete.map((itemName) =>
           client.send(
@@ -158,7 +232,7 @@ export default function Configuration({
         )
       );
 
-      // write / overwrite current rows
+      // 5) Write / overwrite current rows (now includes Description)
       await Promise.all(
         newItems.map((record) =>
           client.send(

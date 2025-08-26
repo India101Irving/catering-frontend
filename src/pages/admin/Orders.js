@@ -1,4 +1,4 @@
-// Orders.js — fix payment string parsing, Payment as 6th card, top-row Payment visible
+// Orders.js — show spice + comments in UI and PDF; keep Payment as 6th card; add Pending/Refunded/Cancelled buttons
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -151,61 +151,137 @@ export default function Orders() {
   };
 
   /* ---------- Mark as Paid (for cash/unpaid) ---------- */
-  const markOrderAsPaid = async (order) => {
-    try {
-      setOptimisticPaid((m) => new Map(m).set(order.orderId, true));
+const markOrderAsPaid = async (order) => {
+  try {
+    setOptimisticPaid((m) => new Map(m).set(order.orderId, true));
 
-      const { credentials } = await fetchAuthSession();
-      if (!credentials) throw new Error('No AWS credentials from Amplify session');
+    const { credentials } = await fetchAuthSession();
+    if (!credentials) throw new Error('No AWS credentials from Amplify session');
 
-      const ddbClient = new DynamoDBClient({
-        region: REGION,
-        credentials: {
-          accessKeyId: credentials.accessKeyId,
-          secretAccessKey: credentials.secretAccessKey,
-          sessionToken: credentials.sessionToken,
-        },
-      });
-      const docClient = DynamoDBDocumentClient.from(ddbClient);
+    const ddbClient = new DynamoDBClient({
+      region: REGION,
+      credentials: {
+        accessKeyId: credentials.accessKeyId,
+        secretAccessKey: credentials.secretAccessKey,
+        sessionToken: credentials.sessionToken,
+      },
+    });
 
-      await docClient.send(new UpdateCommand({
-        TableName: ORDERS_TABLE,
-        Key: { orderId: order.orderId },
-        UpdateExpression: `
-          SET paymentStatus = :paid,
-              paidAt = :ts,
-              payment = if_not_exists(payment, :p0),
-              paymentMethod = if_not_exists(paymentMethod, :pm)
-        `,
-        ExpressionAttributeValues: {
-          ':paid': 'paid',
-          ':ts': new Date().toISOString(),
-          ':p0': { method: order.paymentMethod || 'cash', status: 'manual', markedPaid: true },
-          ':pm': order.paymentMethod || 'cash',
-        },
-      }));
+    // ✅ drop undefineds automatically
+    const docClient = DynamoDBDocumentClient.from(ddbClient, {
+      marshallOptions: { removeUndefinedValues: true },
+    });
 
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.orderId === order.orderId
-            ? {
-                ...o,
-                paymentStatus: 'paid',
-                paymentMethod: o.paymentMethod || 'cash',
-                paidAt: new Date().toISOString(),
-                payment: mergePayment(o.payment, { method: o.paymentMethod || 'cash', status: 'manual', markedPaid: true }),
-              }
-            : o
-        )
-      );
-    } catch (e) {
-      console.error('Mark as paid failed:', e);
-      setOptimisticPaid((m) => new Map(m).set(order.orderId, false));
-      alert('Failed to mark order as paid. Check IAM permissions and table key.');
-    }
-  };
+    await docClient.send(new UpdateCommand({
+      TableName: ORDERS_TABLE,
+      Key: { orderId: order.orderId },
+      UpdateExpression: `
+        SET paymentStatus = :paid,
+            paidAt = :ts,
+            payment = if_not_exists(payment, :p0),
+            paymentMethod = if_not_exists(paymentMethod, :pm)
+      `,
+      ExpressionAttributeValues: {
+        ':paid': 'paid',
+        ':ts': new Date().toISOString(),
+        ':p0': { method: order.paymentMethod || 'cash', status: 'manual', markedPaid: true },
+        ':pm': order.paymentMethod || 'cash',
+      },
+    }));
 
-  /* ---------- Export: Excel ---------- */
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.orderId === order.orderId
+          ? {
+              ...o,
+              paymentStatus: 'paid',
+              paymentMethod: o.paymentMethod || 'cash',
+              paidAt: new Date().toISOString(),
+              payment: mergePayment(o.payment, { method: o.paymentMethod || 'cash', status: 'manual', markedPaid: true }),
+            }
+          : o
+      )
+    );
+  } catch (e) {
+    console.error('Mark as paid failed:', e);
+    setOptimisticPaid((m) => new Map(m).set(order.orderId, false));
+    alert('Failed to mark order as paid. Check IAM permissions and table key.');
+  }
+};
+
+/* ---------- Update Payment Status (Pending / Refunded / Cancelled / Paid) ---------- */
+const updatePaymentStatus = async (order, status) => {
+  // normalize & validate
+  const s = String(status || '').toLowerCase();
+  const allowed = new Set(['paid', 'pending', 'refunded', 'cancelled']);
+  if (!allowed.has(s)) {
+    console.warn('[updatePaymentStatus] invalid status:', status);
+    alert('Invalid payment status.');
+    return;
+  }
+
+  try {
+    const { credentials } = await fetchAuthSession();
+    if (!credentials) throw new Error('No AWS credentials from Amplify session');
+
+    const ddbClient = new DynamoDBClient({
+      region: REGION,
+      credentials: {
+        accessKeyId: credentials.accessKeyId,
+        secretAccessKey: credentials.secretAccessKey,
+        sessionToken: credentials.sessionToken,
+      },
+    });
+
+    // drop undefined values during marshalling
+    const docClient = DynamoDBDocumentClient.from(ddbClient, {
+      marshallOptions: { removeUndefinedValues: true },
+    });
+
+    const nowIso = new Date().toISOString();
+
+    await docClient.send(new UpdateCommand({
+      TableName: ORDERS_TABLE,
+      Key: { orderId: order.orderId },
+      UpdateExpression: 'SET paymentStatus = :s, paidAt = :ts, payment = :p',
+      ExpressionAttributeValues: {
+        ':s': s,                           // ✅ always defined
+        ':ts': nowIso,
+        ':p': mergePayment(order.payment, {
+          status: s,
+          markedPaid: s === 'paid',
+        }),
+      },
+    }));
+
+    // keep optimistic map in sync
+    setOptimisticPaid((m) => {
+      const n = new Map(m);
+      if (s !== 'paid') n.delete(order.orderId);
+      else n.set(order.orderId, true);
+      return n;
+    });
+
+    // update local state so main row badge changes immediately
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.orderId === order.orderId
+          ? {
+              ...o,
+              paymentStatus: s,
+              paidAt: nowIso,
+              payment: mergePayment(o.payment, { status: s, markedPaid: s === 'paid' }),
+            }
+          : o
+      )
+    );
+  } catch (e) {
+    console.error('Update payment status failed:', e);
+    alert(`Failed to update payment status: ${e?.name || 'Error'}`);
+  }
+};
+
+  /* ---------- Export: Excel (unchanged) ---------- */
   const exportExcel = () => {
     const headers = [
       'placedAt','orderId','customerName','customerEmail','phone','address',
@@ -252,7 +328,7 @@ export default function Orders() {
     XLSX.writeFile(wb, `orders-export-${ts}.xlsx`);
   };
 
-  /* ---------- Export: Kitchen PDF ---------- */
+  /* ---------- Export: Kitchen PDF (adds Spice & Notes) ---------- */
   const exportSelectedToPDF = () => {
     const pick = filteredSorted.filter((o) => selected.has(o.orderId));
     if (!pick.length) return;
@@ -361,6 +437,22 @@ export default function Orders() {
         margin: { left: marginX, right: marginX },
         tableWidth: 'wrap',
       });
+
+      // ---- Spice & Notes (includes Special Request) ----
+      const spiceRows = buildSpiceAndNotesRows(o);
+      autoTable(doc, {
+        startY: (doc.lastAutoTable?.finalY ?? (yAfterLines + 18)) + 18,
+        head: [['Spice & Notes', ' ']],
+        body: spiceRows.length ? spiceRows : [['Spice', '-']],
+        styles: { fontSize: 10, cellPadding: 6 },
+        headStyles: { fillColor: [33, 33, 33], textColor: 255 },
+        columnStyles: {
+          0: { cellWidth: 200 },
+          1: { cellWidth: pageWidth - marginX * 2 - 200 },
+        },
+        margin: { left: marginX, right: marginX },
+        tableWidth: 'wrap',
+      });
     });
 
     const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
@@ -420,16 +512,18 @@ export default function Orders() {
             <option value="card">Card</option>
             <option value="cash">Cash</option>
           </select>
-          <select
-            value={filterPayStatus}
-            onChange={(e) => setFilterPayStatus(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm"
-            title="Payment Status"
-          >
-            <option value="all">Status: All</option>
-            <option value="paid">Paid</option>
-            <option value="pending">Pending</option>
-          </select>
+        <select
+  value={filterPayStatus}
+  onChange={(e) => setFilterPayStatus(e.target.value)}
+  className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm"
+  title="Payment Status"
+>
+  <option value="all">Status: All</option>
+  <option value="paid">Paid</option>
+  <option value="pending">Pending</option>
+  <option value="refunded">Refunded</option>
+  <option value="cancelled">Cancelled</option>
+</select>
           <button
             onClick={clearFilters}
             className="px-3 py-2 rounded bg-neutral-700 hover:bg-neutral-600 text-sm"
@@ -521,17 +615,10 @@ export default function Orders() {
                       {paymentMethod ? capitalizeFirst(paymentMethod) : '-'}
                       {renderPaymentTail(o.payment)}
                     </Td>
-                    <Td className="py-2.5">
-                      {paid ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-700/30 text-emerald-300 border border-emerald-700/60">
-                          Paid
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-700/30 text-amber-300 border border-amber-700/60">
-                          Pending
-                        </span>
-                      )}
-                    </Td>
+                    {/* Status (uses canonical status, updates live) */}
+<Td className="py-2.5">
+  {renderStatusBadge(getCanonicalStatus(o, optimisticPaid.get(o.orderId)))}
+</Td>
                   </tr>
 
                   {/* Expandable details */}
@@ -557,10 +644,15 @@ export default function Orders() {
                         {renderCodes(o.codes)}
                       </DetailCard>
 
-                      {/* 6th card: Payment (status + Mark Paid) */}
-                      <DetailCard title="Payment">
-                        {renderPaymentCard(o, paid, () => markOrderAsPaid(o))}
-                      </DetailCard>
+                      {/* 6th card: Payment (status + Mark Paid + New status buttons) */}
+                     <DetailCard title="Payment">
+  {renderPaymentCard(o,
+    /* paid: */ inferPaidFromStatus(o, optimisticPaid.get(o.orderId)),
+    /* onMarkPaid: */ () => updatePaymentStatus(o, 'paid'),
+    /* updater: */ updatePaymentStatus
+  )}
+</DetailCard>
+
                     </div>
                   </AnimatedExpand>
                 </React.Fragment>
@@ -644,7 +736,6 @@ function currency(n) {
   }
 }
 function stringifyPaymentForCell(p) {
-  // Reuse your robust parser
   const obj = parsePayment(p);
   if (!obj) return '';
 
@@ -771,37 +862,57 @@ function renderPaymentTail(p) {
   return parts.length ? <span className="text-neutral-300 ml-1 text-xs">({parts.join(' ')})</span> : null;
 }
 
-function renderPaymentCard(o, paid, onMarkPaid) {
+function renderPaymentCard(o, paid, onMarkPaid, doUpdateStatus) {
   const pm = capitalizeFirst(o.paymentMethod || parsePayment(o.payment)?.method || '');
+  const status = getCanonicalStatus(o, paid);
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {/* Payment method */}
       <div className="flex items-center gap-2 text-sm">
         <span className="text-neutral-300">Method:</span>
         <span className="font-medium">{pm || '-'}</span>
         {renderPaymentTail(o.payment)}
       </div>
-      <div className="flex items-center gap-2">
-        {paid ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-700/30 text-emerald-300 border border-emerald-700/60">
-            Paid
-          </span>
-        ) : (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-700/30 text-amber-300 border border-amber-700/60">
-            Pending
-          </span>
-        )}
-        {!paid && (String(o.paymentMethod || parsePayment(o.payment)?.method || '').toLowerCase() === 'cash') && (
+
+      {/* Current status badge */}
+      <div className="flex flex-wrap gap-2">
+        {renderStatusBadge(status)}
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex flex-wrap gap-2">
+        {!paid && (pm.toLowerCase() === 'cash') && (
           <button
             onClick={(e) => { e.stopPropagation(); onMarkPaid(); }}
-            className="ml-auto px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
+            className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
           >
-            Mark as Paid
+            Mark Paid
           </button>
         )}
+        <button
+          onClick={(e) => { e.stopPropagation(); doUpdateStatus(o, 'pending'); }}
+          className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white text-sm"
+        >
+          Pending
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); doUpdateStatus(o, 'refunded'); }}
+          className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
+        >
+          Refunded
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); doUpdateStatus(o, 'cancelled'); }}
+          className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-sm"
+        >
+          Cancelled
+        </button>
       </div>
     </div>
   );
 }
+
 
 /* ===== Contact / Accounting renderers ===== */
 function renderContact(o) {
@@ -811,6 +922,25 @@ function renderContact(o) {
       <div>Email: <span className="font-medium break-all">{o.customerEmail || '-'}</span></div>
       <div>Phone: <span className="font-medium">{o.phone || '-'}</span></div>
       <div>Address: <span className="font-medium">{formatAddress(o.address) || '-'}</span></div>
+      {o.specialRequest ? (
+        <div className="mt-2">
+          Special Request: <span className="font-medium">{o.specialRequest}</span>
+        </div>
+      ) : null}
+      {Array.isArray(o.spiceSelections) && o.spiceSelections.length ? (
+        <div className="mt-2">
+          <div className="text-neutral-300">Spice Preferences:</div>
+          <ul className="list-disc ml-5">
+            {o.spiceSelections.map((s, i) => (
+              <li key={i}>
+                <span className="font-medium">{s.name}</span>
+                {s.size ? <span className="text-neutral-300"> ({s.size})</span> : null}
+                <span className="text-neutral-300"> — {s.spiceLevel || 'Medium'}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -861,16 +991,21 @@ function renderLines(lines) {
     <div className="space-y-3">
       {norm.map((ln, idx) => (
         <div key={idx} className="border border-[#3A2D2D] rounded-md p-2">
-          <div className="text-base font-semibold">{ln.itemName || 'Item'}</div>
-       {(ln.size || ln.qty || ln.qty === 0) && (
-  <div className="text-xs text-neutral-300 mt-1">
-    {/* Hide "package" tray size */}
-    {!/^\s*package\s*$/i.test(ln.size) && ln.size ? <span>Tray Size: {ln.size}</span> : null}
-    {!/^\s*package\s*$/i.test(ln.size) && (ln.qty || ln.qty === 0) ? <span> • </span> : null}
-    {/* Suppress Qty if this is a package parent */}
-    {!/package/i.test(ln.size) && (ln.qty || ln.qty === 0) ? <span>Qty: {ln.qty}</span> : null}
-  </div>
-)}
+          <div className="text-base font-semibold">
+            {ln.itemName || 'Item'}
+            {ln.spiceLevel ? (
+              <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full border border-[#F58735]/60 text-[#F58735] align-middle">
+                Spice: {ln.spiceLevel}
+              </span>
+            ) : null}
+          </div>
+          {(ln.size || ln.qty || ln.qty === 0) && (
+            <div className="text-xs text-neutral-300 mt-1">
+              {!/^\s*package\s*$/i.test(ln.size) && ln.size ? <span>Tray Size: {ln.size}</span> : null}
+              {!/^\s*package\s*$/i.test(ln.size) && (ln.qty || ln.qty === 0) ? <span> • </span> : null}
+              {!/package/i.test(ln.size) && (ln.qty || ln.qty === 0) ? <span>Qty: {ln.qty}</span> : null}
+            </div>
+          )}
 
           {!!ln.children?.length && (
             <div className="mt-2 pl-3 border-l border-[#3A2D2D] space-y-1">
@@ -879,6 +1014,7 @@ function renderLines(lines) {
                   • <span className="font-medium">{c.itemName}</span>
                   {c.size ? <span className="text-neutral-300"> — {c.size}</span> : null}
                   {c.qty || c.qty === 0 ? <span className="text-neutral-300"> × {c.qty}</span> : null}
+                  {c.spiceLevel ? <span className="text-neutral-300"> • Spice: {c.spiceLevel}</span> : null}
                 </div>
               ))}
             </div>
@@ -898,12 +1034,11 @@ function normalizeLineItem(raw) {
       const parent = safe(m[1]);
       const itemsStr = m[2] || '';
       const children = itemsStr
-        .split(/\s*,\s*/) // split individual items inside [...]
+        .split(/\s*,\s*/)
         .filter(Boolean)
         .map(parseChildDetailFromString);
       return { itemName: parent, size: '', qty: '', children };
     }
-    // Plain string with no special structure
     return { itemName: safe(raw), size: '', qty: '' };
   }
 
@@ -916,6 +1051,7 @@ function normalizeLineItem(raw) {
   const itemNameRaw = safe(raw.name || raw.item || raw.title || raw.packageName || '');
   const size = safe(raw.size || raw.tray || raw.traySize || raw.option || '');
   const qty  = raw.qty ?? raw.quantity ?? raw.count ?? '';
+  const spiceLevel = normalizeSpice(raw.SpiceLevel || raw.spiceLevel || raw.spice);
 
   let children = [];
 
@@ -940,6 +1076,7 @@ function normalizeLineItem(raw) {
       itemName: safe(t.name || t.item || t.title || ''),
       size:     safe(t.size || t.tray || t.traySize || t.option || ''),
       qty:      t.qty ?? t.quantity ?? t.count ?? '',
+      spiceLevel: normalizeSpice(t.SpiceLevel || t.spiceLevel || t.spice),
     };
   };
 
@@ -947,32 +1084,24 @@ function normalizeLineItem(raw) {
   if (Array.isArray(raw.items))      children = children.concat(raw.items.map(mapChild));
   if (Array.isArray(raw.components)) children = children.concat(raw.components.map(mapChild));
 
-  return { itemName, size, qty, children };
+  return { itemName, size, qty, spiceLevel, children };
 }
 
 // Parse strings like "Mix Pakora — SmallTray × 1" or "Puri — per-piece × 15"
-// Parse "Mix Pakora — SmallTray × 1" or "Puri - per-piece x 15"
 function parseChildDetailFromString(s) {
   const str = safe(s);
-
-  // Split into "name" and "rest"
   const m = str.match(/^(.*?)\s*(?:—|–|-)\s*(.*)$/);
   const itemName = safe(m ? m[1] : str);
   const right    = m ? m[2] : '';
-
   if (!right) return { itemName, size: '', qty: '' };
 
-  // Qty: support × or x
   const qtyMatch = right.match(/(?:×|x)\s*(\d+)\s*$/i);
   const qty = qtyMatch ? Number(qtyMatch[1]) : '';
-
-  // Size: everything before the qty suffix
   const size = safe(right.replace(/\s*(?:×|x)\s*\d+\s*$/i, ''));
-
   return { itemName, size, qty };
 }
 
-
+/* Build rows for Items table in PDF */
 function buildLinesRows(lines) {
   if (!lines) return [];
   let arr = lines;
@@ -996,6 +1125,7 @@ function buildLinesRows(lines) {
   });
   return rows;
 }
+
 function parseAddOns(addOns) {
   let warmers = null;
   let utensils = null;
@@ -1141,6 +1271,35 @@ function mergePayment(oldP, patch) {
   return { ...base, ...patch };
 }
 
+/* ===== Spice & Notes helpers ===== */
+function normalizeSpice(v) {
+  const s = String(v || '').trim().toLowerCase();
+  if (!s) return undefined;
+  if (s.startsWith('mild')) return 'Mild';
+  if (s.startsWith('spic')) return 'Spicy';
+  return 'Medium';
+}
+function parseJSONMaybe(v) {
+  if (v == null) return null;
+  if (typeof v === 'object') return v;
+  if (typeof v !== 'string') return null;
+  try { return JSON.parse(v); } catch { return null; }
+}
+function coerceSpiceSelections(any) {
+  const raw = parseJSONMaybe(any) ?? any;
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((s) => ({
+        name: safe(s?.name ?? s?.item ?? s?.title ?? ''),
+        size: safe(s?.size ?? s?.tray ?? s?.traySize ?? ''),
+        qty:  Number(s?.qty ?? s?.quantity ?? s?.count ?? 0) || undefined,
+        spiceLevel: normalizeSpice(s?.spiceLevel ?? s?.SpiceLevel ?? s?.spice),
+      }))
+      .filter((s) => s.name && s.spiceLevel);
+  }
+  return [];
+}
 
 /* ===== Paid inference ===== */
 function inferPaidFromStatus(o, optimistic) {
@@ -1164,7 +1323,40 @@ function inferPaid(o, optimistic) {
   return false;
 }
 
-/* ===== Normalizer (robust to casing + payment parsing) ===== */
+/* ===== Canonical payment status & badge ===== */
+function getCanonicalStatus(o, optimistic) {
+  // If we just optimistically marked as paid
+  if (optimistic === true) return 'paid';
+
+  const raw = toLowerSafely(o.paymentStatus);
+  if (raw === 'paid' || raw === 'pending' || raw === 'refunded' || raw === 'cancelled') {
+    return raw;
+  }
+  // Fallback to inference for legacy rows
+  return inferPaid(o, optimistic) ? 'paid' : 'pending';
+}
+
+function renderStatusBadge(status) {
+  const s = String(status || '').toLowerCase();
+  const base = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs border';
+  if (s === 'paid') {
+    return <span className={`${base} bg-emerald-700/30 text-emerald-300 border-emerald-700/60`}>Paid</span>;
+  }
+  if (s === 'pending') {
+    return <span className={`${base} bg-amber-700/30 text-amber-300 border-amber-700/60`}>Pending</span>;
+  }
+  if (s === 'refunded') {
+    return <span className={`${base} bg-blue-700/30 text-blue-300 border-blue-700/60`}>Refunded</span>;
+  }
+  if (s === 'cancelled') {
+    return <span className={`${base} bg-red-700/30 text-red-300 border-red-700/60`}>Cancelled</span>;
+  }
+  // default
+  return <span className={`${base} bg-neutral-700/30 text-neutral-300 border-neutral-700/60`}>{s || '-'}</span>;
+}
+
+
+/* ===== Normalizer (add specialRequest + spiceSelections) ===== */
 function normalizeOrder(it = {}) {
   const cartTotal = asNum(it.cartTotal);
   const deliveryFee = asNum(it.deliveryFee);
@@ -1175,8 +1367,8 @@ function normalizeOrder(it = {}) {
   const salesTaxRate = asNum(it.salesTaxRate);
 
   const phone = getAny(it, ['phone', 'Phone', 'customerPhone', 'contactPhone']) || '';
-  
-  // Parse payment field first
+
+  // Payment parsing first
   const paymentParsed = parsePayment(it.payment);
 
   // paymentStatus (many styles); if missing, infer from parsed payment
@@ -1187,11 +1379,55 @@ function normalizeOrder(it = {}) {
     if (inferred) paymentStatus = (inferred === 'succeeded') ? 'paid' : inferred;
   }
 
-  // paymentMethod (many styles); if missing, fall back to parsed payment or raw string
+  // paymentMethod; if missing, fall back to parsed payment or raw string
   const rawPaymentMethod = getAny(it, ['paymentMethod','payment_method','PaymentMethod']) || '';
   let paymentMethod = toLowerSafely(rawPaymentMethod);
   if (!paymentMethod) {
     paymentMethod = toLowerSafely(paymentParsed?.method || (typeof it.payment === 'string' ? it.payment : ''));
+  }
+
+  // Prefer top-level special request if present; otherwise from nested customer object
+  const topLevelSpecial = safe(
+    getAny(it, [
+      'specialRequest','special_request','special','notes','note','comment','comments','specialInstructions','specialInstruction'
+    ]) || ''
+  );
+
+  let customerObj = getAny(it, ['customer','Customer']) ?? null;
+  customerObj = parseJSONMaybe(customerObj) ?? customerObj ?? {};
+  const nestedSpecial =
+    safe(
+      getAny(customerObj, [
+        'specialRequest','special_request','special','notes','note','comment','comments','specialInstructions','specialInstruction'
+      ]) || ''
+    );
+    
+      // Allow a top-level fallback too (some legacy payloads store it flat)
+  const specialRequest =
+    nestedSpecial ||
+    safe(
+      getAny(it, [
+        'specialRequest','special_request','special',
+        'notes','note','comment','comments',
+        'specialInstructions','specialInstruction'
+      ]) || ''
+    );
+
+  // ---- Spice selections: prefer explicit field; else derive from lines ----
+  let spiceSelections = coerceSpiceSelections(getAny(it, ['spiceSelections','SpiceSelections']));
+  if (!spiceSelections.length) {
+    const rawLines = parseJSONMaybe(it.lines) ?? it.lines;
+    if (Array.isArray(rawLines)) {
+      const derived = rawLines
+        .map((l) => ({
+          name: safe(l?.name || l?.item || l?.title || ''),
+          size: safe(l?.size || l?.tray || l?.traySize || ''),
+          spiceLevel: normalizeSpice(l?.spiceLevel || l?.SpiceLevel || l?.spice),
+          qty: Number(l?.qty ?? l?.quantity ?? l?.count ?? 0) || undefined,
+        }))
+        .filter((x) => x.name && x.spiceLevel);
+      if (derived.length) spiceSelections = derived;
+    }
   }
 
   return {
@@ -1225,9 +1461,30 @@ function normalizeOrder(it = {}) {
     stripeSessionId: it.stripeSessionId ?? '',
     stripePaymentIntentId: it.stripePaymentIntentId ?? '',
     stripeChargeId: it.stripeChargeId ?? '',
+
+    // NEW: ensure these are always present on the normalized shape
+    specialRequest,
+    spiceSelections,
   };
 }
+
 function asNum(v) {
   const n = typeof v === 'string' ? parseFloat(v) : Number(v);
   return Number.isFinite(n) ? n : 0;
 }
+
+/* ---------- PDF helper for “Spice & Notes” ---------- */
+function buildSpiceAndNotesRows(o) {
+  const rows = [];
+  if (o.specialRequest) rows.push(['Special Request', o.specialRequest]);
+
+  if (Array.isArray(o.spiceSelections) && o.spiceSelections.length) {
+    o.spiceSelections.forEach((s) => {
+      const left = `Spice — ${safe(s.name)}${s.size ? ` (${safe(s.size)})` : ''}`;
+      rows.push([left, s.spiceLevel || 'Medium']);
+    });
+  }
+  return rows;
+}
+
+

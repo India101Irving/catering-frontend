@@ -19,7 +19,7 @@ export default function TrayCard({ item, onAdd }) {
   // Non‑Veg detection (by name keywords)
   const nonVeg = useMemo(() => {
     const name = String(item.Item || '').toLowerCase();
-    const tokens = ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','shrimp'];
+    const tokens = ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','ghost','maans','macchi','sea food','shrimp'];
     return tokens.some(t => name.includes(t));
   }, [item]);
 

@@ -157,9 +157,17 @@ function loadGoogleMaps(key) {
   return new Promise((resolve, reject) => {
     if (!key) return reject(new Error('No Google Maps key'));
     if (window.google?.maps) return resolve(window.google);
+
+    // Remove any prior script to avoid caching a bad weekly build
+    const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+    if (existing) existing.remove();
+
+    // Pin to stable channel to avoid p.zI regression
+    const src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&v=quarterly`;
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`;
+    s.src = src;
     s.async = true;
+    s.defer = true;
     s.onerror = () => reject(new Error('Failed to load Google Maps JS SDK'));
     s.onload = () => resolve(window.google);
     document.head.appendChild(s);
@@ -299,8 +307,9 @@ export default function Checkout() {
     if (ALLOW_CASH && payment === 'cash') setMethod('pickup');
   }, [payment]);
 
-  /* ----- Google SDK + Autocomplete ----- */
+  /* ----- Google SDK load ----- */
   const addr1Ref = useRef(null);
+  const acRef = useRef(null);
   const [sdkReady, setSdkReady] = useState(false);
   const [addressVerified, setAddressVerified] = useState(false);
 
@@ -308,34 +317,58 @@ export default function Checkout() {
     let mounted = true;
     if (!GOOGLE_MAPS_KEY) return; // fallback to manual
     loadGoogleMaps(GOOGLE_MAPS_KEY)
-      .then((google) => {
-        if (!mounted || !addr1Ref.current) return;
-        setSdkReady(true);
-        const ac = new google.maps.places.Autocomplete(addr1Ref.current, {
-          componentRestrictions: { country: ['us'] },
-          fields: ['address_components', 'formatted_address'],
-        });
-        ac.addListener('place_changed', () => {
-          const place = ac.getPlace();
-          const comps = place?.address_components || [];
-          const get = (type) => comps.find((c) => c.types.includes(type))?.long_name || '';
-          const streetNumber = get('street_number');
-          const route = get('route');
-          const locality = get('locality') || get('sublocality') || '';
-          const admin1 = get('administrative_area_level_1');
-          const postal = get('postal_code');
-
-          const line1 = [streetNumber, route].filter(Boolean).join(' ');
-          if (line1) setAddr1(line1);
-          if (locality) setCity(locality);
-          if (admin1) setSt(admin1);
-          if (postal) setZip(postal);
-          setAddressVerified(Boolean(line1 && postal));
-        });
-      })
+      .then(() => { if (mounted) setSdkReady(true); })
       .catch(() => {});
     return () => { mounted = false; };
   }, []);
+
+  /* Attach Places Autocomplete only when input is mounted and SDK is ready */
+  useEffect(() => {
+    if (!sdkReady) return;
+    if (method !== 'delivery') return;
+    if (!addr1Ref.current) return;
+    if (!window.google?.maps?.places) return; // guard
+
+    const google = window.google;
+    const ac = new google.maps.places.Autocomplete(addr1Ref.current, {
+      componentRestrictions: { country: 'US' }, // string, not array
+      types: ['address'],
+      fields: ['address_components', 'formatted_address', 'place_id'],
+    });
+    acRef.current = ac;
+
+    const onPlace = () => {
+      try {
+        const place = ac.getPlace();
+        const comps = place?.address_components || [];
+        const get = (type) => comps.find((c) => c.types.includes(type))?.long_name || '';
+        const streetNumber = get('street_number');
+        const route = get('route');
+        const locality = get('locality') || get('sublocality') || get('postal_town') || '';
+        const admin1 = get('administrative_area_level_1');
+        const postal = get('postal_code');
+
+        const line1 = [streetNumber, route].filter(Boolean).join(' ');
+        if (line1) setAddr1(line1);
+        if (locality) setCity(locality);
+        if (admin1) setSt(admin1);
+        if (postal) setZip(postal);
+        setAddressVerified(Boolean(line1 && postal));
+      } catch (e) {
+        // Defensive: don't allow a weird payload to break UI
+        // eslint-disable-next-line no-console
+        console.error('[Autocomplete place_changed]', e);
+        setAddressVerified(false);
+      }
+    };
+
+    ac.addListener('place_changed', onPlace);
+
+    return () => {
+      try { google.maps.event.clearInstanceListeners(ac); } catch {}
+      acRef.current = null;
+    };
+  }, [sdkReady, method]);
 
   // typing resets verification
   useEffect(() => { setAddressVerified(false); }, [addr1, addr2, city, st, zip]);

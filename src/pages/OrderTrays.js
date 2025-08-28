@@ -1,4 +1,4 @@
-// OrderTrays.js — trays flow
+// OrderTrays.js — trays flow (with per-category Veg/Non-Veg filter + mobile layout tweaks)
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -65,6 +65,10 @@ export default function OrderTrays() {
 
   const [cat, setCat] = useState('');
 
+  // simple per-category filter (resets on category change)
+  const [catFilter, setCatFilter] = useState('All'); // 'All' | 'Veg' | 'Non-Veg'
+  const isDessert = (c) => String(c || '').toLowerCase() === 'dessert';
+
   // cart
   const [cart, setCart] = useState(() => {
     try { return JSON.parse(localStorage.getItem('i101_cart')) || []; }
@@ -116,6 +120,12 @@ export default function OrderTrays() {
       else setCat(categories[0]);
     }
   }, [categories, cat]);
+
+  // reset filter when category changes
+  useEffect(() => {
+    if (!cat) return;
+    setCatFilter('All');
+  }, [cat]);
 
   const loadPricing = async (session) => {
     const creds = session?.credentials;
@@ -176,6 +186,16 @@ export default function OrderTrays() {
     localStorage.removeItem('i101_cart');
   };
 
+  // items after applying Veg/Non-Veg filter (no filter for Dessert)
+  const visibleItems = useMemo(() => {
+    const list = grouped[cat] || [];
+    if (!list.length) return [];
+    if (isDessert(cat) || catFilter === 'All') return list;
+    if (catFilter === 'Veg') return list.filter(it => !isNonVeg(it.Item));
+    if (catFilter === 'Non-Veg') return list.filter(it => isNonVeg(it.Item));
+    return list;
+  }, [grouped, cat, catFilter]);
+
   return (
     <div className="min-h-screen bg-[#1c1b1b] text-white p-4 md:p-6 md:pr-[24rem] relative">
       {/* 🔶 Softer faded background (very subtle, proportional) */}
@@ -193,8 +213,8 @@ export default function OrderTrays() {
 
       {/* Wrap content above background */}
       <div className="relative z-10">
-        {/* Title row WITH right-aligned auth (so it respects the cart padding) */}
-        <div className="flex items-center justify-between mb-4 md:mb-6 mt-3 md:mt-4">
+        {/* ===== Desktop header (unchanged) ===== */}
+        <div className="hidden md:flex items-center justify-between mb-4 md:mb-6 mt-3 md:mt-4">
           <div className="flex items-center">
             <img
               src={India101Logo}
@@ -207,7 +227,7 @@ export default function OrderTrays() {
           </div>
 
           {/* Desktop auth controls */}
-          <div className="hidden md:flex items-center gap-4 text-sm">
+          <div className="items-center gap-4 text-sm hidden md:flex">
             {currentUser ? (
               <>
                 <span>
@@ -231,24 +251,144 @@ export default function OrderTrays() {
           </div>
         </div>
 
-        {/* Mobile topbar auth */}
-        <div className="md:hidden flex justify-end mb-2">
-          {currentUser ? (
-            <button
-              onClick={handleSignOut}
-              className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm"
-            >
-              Sign Out
-            </button>
-          ) : (
-            <button
-              onClick={() => nav('/signin', { state: { returnTo: '/OrderTrays' } })}
-              className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded text-sm"
-            >
-              Sign In / Create Account
-            </button>
-          )}
+        {/* ===== Mobile header (centered logo, then title/auth row) ===== */}
+        <div className="md:hidden mt-4 mb-3">
+          {/* Centered logo */}
+          <div className="flex justify-center mb-3">
+            <img
+              src={India101Logo}
+              alt="India 101 Logo"
+              className="h-12 object-contain"
+            />
+          </div>
+
+          {/* Row: title left, auth right */}
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-bold text-orange-400">Order Trays</span>
+            {currentUser ? (
+              <button
+                onClick={handleSignOut}
+                className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <button
+                onClick={() => nav('/signin', { state: { returnTo: '/OrderTrays' } })}
+                className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded text-sm"
+              >
+                Sign In / Create Account
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Back button (centered on mobile, left on desktop) */}
+        <div className="text-center md:text-left">
+          <button
+            onClick={() => nav('/')}
+            className="mt-3 md:mt-4 mb-2 md:mb-4 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
+          >
+            ‹ Start Over
+          </button>
+        </div>
+
+        {/* TOP Category selector (centered on mobile) */}
+        {categories.length > 1 && (
+          <div className="mb-2 md:mb-3">
+            <div className="flex justify-center md:justify-start">
+              <div className="flex md:flex-wrap gap-2 md:gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+                {categories.map((cName) => (
+                  <button
+                    key={cName}
+                    onClick={() => setCat(cName)}
+                    className={`px-4 py-1 rounded-full text-sm border whitespace-nowrap transition ${
+                      cName === cat
+                        ? 'bg-[#F58735] border-[#F58735] text-black'
+                        : 'bg-[#2c2a2a] hover:bg-[#3a3939] border-[#3a3939] text-white'
+                    }`}
+                  >
+                    {cName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Minimal Veg / Non-Veg filter (hidden for Dessert) — centered on mobile */}
+        {!isDessert(cat) && (grouped[cat]?.length > 0) && (
+          <div className="mb-3 md:mb-4">
+            <div className="flex justify-center md:justify-start">
+              <div className="inline-flex items-center gap-1 bg-[#2c2a2a] border border-[#3a3939] rounded-full p-1">
+                {['All','Veg','Non-Veg'].map(opt => (
+                  <button
+                    key={opt}
+                    onClick={() => setCatFilter(opt)}
+                    className={`px-3 py-1 rounded-full text-xs md:text-sm transition ${
+                      catFilter === opt
+                        ? 'bg-[#F58735] text-black'
+                        : 'hover:bg-[#3a3939] text-white'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Trays UI header with learn button */}
+        <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+          <p className="text-base md:text-lg text-center md:text-left m-0">
+            Select tray size and quantity for each item:
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowTrayInfo(true)}
+            className="self-center md:self-auto border border-[#F58735] text-[#F58735] hover:bg-[#F58735]/10 px-4 py-2 rounded text-sm"
+          >
+            Learn about tray sizes
+          </button>
+        </div>
+
+        {loading ? (
+          <p>Loading menu…</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+            {visibleItems.map(it => (
+              <TrayCard
+                key={it.Item}
+                item={{ ...it, isNonVeg: isNonVeg(it.Item) }}  // pass flag for badge
+                onAdd={(size, qty, unit, extras) => addToCart(size, qty, unit, it, extras)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Bottom category selector (unchanged; left on desktop, centered on mobile via container) */}
+        {categories.length > 1 && (
+          <div className="mt-4 md:mt-6">
+            <div className="flex justify-center md:justify-start">
+              <div className="flex md:flex-wrap gap-2 md:gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+                {categories.map(cName => (
+                  <button
+                    key={cName}
+                    onClick={() => setCat(cName)}
+                    className={`px-4 py-1 rounded-full text-sm border whitespace-nowrap ${
+                      cName === cat
+                        ? 'bg-[#F58735] border-[#F58735]'
+                        : 'bg-[#2c2a2a] hover:bg-[#3a3939] border-[#3a3939]'
+                    }`}
+                  >
+                    {cName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Cart Pane — desktop */}
         <aside className="hidden md:block fixed top-0 right-4 w-80 h-full bg-[#2c2a2a] border-l border-[#3a3939] p-4 overflow-y-auto">
@@ -309,86 +449,6 @@ export default function OrderTrays() {
             </>
           )}
         </aside>
-
-        {/* Back button */}
-        <div className="text-center md:text-left">
-          <button
-            onClick={() => nav('/')}
-            className="mt-3 md:mt-4 mb-2 md:mb-4 text-sm bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#F58735]/60 rounded px-3 py-1"
-          >
-            ‹ Start Over
-          </button>
-        </div>
-
-        {/* TOP Category selector (ordered & kept) */}
-        {categories.length > 1 && (
-          <div className="mb-3 md:mb-5">
-            <div className="flex md:flex-wrap gap-2 md:gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-              {categories.map((cName) => (
-                <button
-                  key={cName}
-                  onClick={() => setCat(cName)}
-                  className={`px-4 py-1 rounded-full text-sm border whitespace-nowrap transition ${
-                    cName === cat
-                      ? 'bg-[#F58735] border-[#F58735] text-black'
-                      : 'bg-[#2c2a2a] hover:bg-[#3a3939] border-[#3a3939] text-white'
-                  }`}
-                >
-                  {cName}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Trays UI header with learn button */}
-        <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-          <p className="text-base md:text-lg text-center md:text-left m-0">
-            Select tray size and quantity for each item:
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowTrayInfo(true)}
-            className="self-center md:self-auto border border-[#F58735] text-[#F58735] hover:bg-[#F58735]/10 px-4 py-2 rounded text-sm"
-          >
-            Learn about tray sizes
-          </button>
-        </div>
-
-        {loading ? (
-          <p>Loading menu…</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-            {(grouped[cat] || []).map(it => (
-              <TrayCard
-                key={it.Item}
-                item={{ ...it, isNonVeg: isNonVeg(it.Item) }}  // pass flag for badge
-                onAdd={(size, qty, unit, extras) => addToCart(size, qty, unit, it, extras)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Bottom category selector (kept) */}
-        {categories.length > 1 && (
-          <div className="mt-4 md:mt-6">
-            <div className="flex md:flex-wrap gap-2 md:gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-              {categories.map(cName => (
-                <button
-                  key={cName}
-                  onClick={() => setCat(cName)}
-                  className={`px-4 py-1 rounded-full text-sm border whitespace-nowrap ${
-                    cName === cat
-                      ? 'bg-[#F58735] border-[#F58735]'
-                      : 'bg-[#2c2a2a] hover:bg-[#3a3939] border-[#3a3939]'
-                  }`}
-                >
-                  {cName}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Mobile floating cart button */}
         <button

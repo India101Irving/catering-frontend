@@ -594,8 +594,8 @@ export default function OrderPackage() {
           )}
         </aside>
 
-        {/* Title row with right-aligned auth (desktop) */}
-        <div className="flex items-center justify-between mb-4 md:mb-6 mt-3 md:mt-4">
+        {/* ===== Desktop header (unchanged) ===== */}
+        <div className="hidden md:flex items-center justify-between mb-4 md:mb-6 mt-3 md:mt-4">
           <div className="flex items-center">
             <img
               src={India101Logo}
@@ -625,20 +625,36 @@ export default function OrderPackage() {
           </div>
         </div>
 
-        {/* Mobile topbar auth */}
-        <div className="md:hidden flex justify-end mb-2">
-          {currentUser ? (
-            <button onClick={handleSignOut} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm">
-              Sign Out
-            </button>
-          ) : (
-            <button
-              onClick={() => nav('/signin', { state: { returnTo: '/OrderPackage' } })}
-              className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded text-sm"
-            >
-              Sign In / Create Account
-            </button>
-          )}
+        {/* ===== Mobile header (centered logo, then title/auth row) ===== */}
+        <div className="md:hidden mt-4 mb-3">
+          {/* Centered logo */}
+          <div className="flex justify-center mb-3">
+            <img
+              src={India101Logo}
+              alt="India 101 Logo"
+              className="h-12 object-contain"
+            />
+          </div>
+
+          {/* Row: title left, auth right */}
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-bold text-orange-400">Order Packages</span>
+            {currentUser ? (
+              <button
+                onClick={handleSignOut}
+                className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <button
+                onClick={() => nav('/signin', { state: { returnTo: '/OrderPackage' } })}
+                className="bg-[#F58735] hover:bg-orange-600 px-3 py-1 rounded text-sm"
+              >
+                Sign In / Create Account
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="text-center md:text-left">

@@ -18,6 +18,9 @@ import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 const REQUIRE_PHONE_VERIFICATION = false; // turn on later if needed
 const ORIGIN_ADDR = '3311 Regent Blvd, Irving TX 75063';
 
+/** 🔧 Feature flag: toggle Cash payments on/off */
+const ALLOW_CASH = false;
+
 const REGION = 'us-east-2';
 const HOURS_TABLE = 'catering-hours-dev';
 const HOURS_PK = 'HOURS';
@@ -240,7 +243,16 @@ export default function Checkout() {
 
   /* form state */
   const saved = (() => { try { return JSON.parse(localStorage.getItem('i101_customer')) || null; } catch { return null; }})();
-  const [payment,  setPayment]  = useState(draft?.payment ?? 'cash');
+  // ✅ Payment uses feature-flag. If cash was in draft but disabled now, force to 'card'.
+  const [payment,  setPayment]  = useState(() => {
+    const p = draft?.payment ?? 'card';
+    return ALLOW_CASH ? p : 'card';
+  });
+  // If flag flips at runtime or old draft tries to set cash when disabled
+  useEffect(() => {
+    if (!ALLOW_CASH && payment === 'cash') setPayment('card');
+  }, [payment]);
+
   const [method,   setMethod]   = useState(draft?.customer?.method ?? 'pickup');
 
   // address (for delivery)
@@ -282,9 +294,9 @@ export default function Checkout() {
     if (pickupDate > maxDateISO) setPickupDate(maxDateISO);
   }, [pickupDate, minDateISO, maxDateISO]);
 
-  /* cash ⇒ force pickup (but only disable Delivery, not Pickup) */
+  /* cash ⇒ force pickup (only when cash is allowed) */
   useEffect(() => {
-    if (payment === 'cash') setMethod('pickup');
+    if (ALLOW_CASH && payment === 'cash') setMethod('pickup');
   }, [payment]);
 
   /* ----- Google SDK + Autocomplete ----- */
@@ -758,11 +770,13 @@ export default function Checkout() {
           <section>
             <h2 className="text-xl font-semibold mb-3">Payment</h2>
             <div className="flex flex-wrap gap-4">
-              <label className="mr-6">
-                <input type="radio" value="cash" checked={payment==='cash'} onChange={() => setPayment('cash')} /> Cash
-              </label>
+              {ALLOW_CASH && (
+                <label className="mr-6">
+                  <input type="radio" value="cash" checked={payment==='cash'} onChange={() => setPayment('cash')} /> Cash
+                </label>
+              )}
               <label>
-                <input type="radio" value="card" checked={payment==='card'} onChange={() => setPayment('card')} /> Card
+                <input type="radio" value="card" checked={payment==='card'} onChange={() => setPayment('card')} /> Credit Card
               </label>
             </div>
           </section>
@@ -780,13 +794,13 @@ export default function Checkout() {
                 />{' '}
                 Pickup
               </label>
-              <label className={`${payment==='cash' ? 'opacity-40 cursor-not-allowed' : ''}`}>
+              <label className={`${(ALLOW_CASH && payment==='cash') ? 'opacity-40 cursor-not-allowed' : ''}`}>
                 <input
                   type="radio"
                   value="delivery"
                   checked={method==='delivery'}
                   onChange={() => setMethod('delivery')}
-                  disabled={payment==='cash'}
+                  disabled={ALLOW_CASH ? (payment==='cash') : false}
                 />{' '}
                 Delivery
               </label>

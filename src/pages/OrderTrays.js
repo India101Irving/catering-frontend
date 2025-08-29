@@ -17,6 +17,9 @@ import TraySizesModal from '../components/TraySizesModal';
 import India101Logo from '../assets/India101_logo_HighRes.jpg';
 import CateringImg from '../assets/India101food.png';
 
+// 🔸 Minimum order total (USD) required to proceed to checkout
+const MIN_ORDER_TOTAL = 30;
+
 // helper: detect non-veg by name
 const isNonVeg = (name = '') => {
   const n = String(name).toLowerCase();
@@ -436,6 +439,11 @@ export default function OrderTrays() {
                 disabled={cart.length === 0}
                 onClick={() => {
                   if (cart.length === 0) return;
+                  // 🔒 Enforce $30 minimum order before proceeding
+                  if (cartTotal < MIN_ORDER_TOTAL) {
+                    window.alert(`The minimum order amount is $${MIN_ORDER_TOTAL}.`);
+                    return;
+                  }
                   if (!currentUser) {
                     nav('/signin', { state: { returnTo: '/checkout' } });
                     return;
@@ -525,6 +533,11 @@ export default function OrderTrays() {
                     disabled={cart.length === 0}
                     onClick={() => {
                       if (cart.length === 0) return;
+                      // 🔒 Enforce $30 minimum order before proceeding
+                      if (cartTotal < MIN_ORDER_TOTAL) {
+                        window.alert(`The minimum order amount is $${MIN_ORDER_TOTAL}.`);
+                        return;
+                      }
                       if (!currentUser) {
                         setShowCartMobile(false);
                         nav('/signin', { state: { returnTo: '/checkout' } });

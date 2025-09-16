@@ -415,7 +415,7 @@ const updatePaymentStatus = async (order, status) => {
       });
 
       const yAfterLines = doc.lastAutoTable?.finalY ?? (yAfterCustomer + 18);
-      const { warmersLabel, utensilsLabel } = parseAddOns(o.addOns);
+      const { raitaLabel, warmersLabel, utensilsLabel } = parseAddOns(o.addOns);
       const agentCode = parseAgentReferenceCode(o.codes);
       const discountCode = parseDiscountCode(o.codes);
 
@@ -423,8 +423,9 @@ const updatePaymentStatus = async (order, status) => {
         startY: yAfterLines + 18,
         head: [['Additional Details', ' ']],
         body: [
-          ['AddOns - Warmers', warmersLabel || '-'],
-          ['AddOns - Utensils', utensilsLabel || '-'],
+          ['AddOns - Raita, Papad & Pickle', raitaLabel || '-'],
+          ['AddOns - Warmers & Serving Spoons', warmersLabel || '-'],
+          ['AddOns - Plates, Utensils & Napkins', utensilsLabel || '-'],
           ['Codes - Agent Reference', agentCode || '-'],
           ['Codes - Discount Code', discountCode || '-'],
         ],
@@ -1129,37 +1130,54 @@ function buildLinesRows(lines) {
 function parseAddOns(addOns) {
   let warmers = null;
   let utensils = null;
-  if (addOns == null) return { warmersLabel: '-', utensilsLabel: '-' };
+  let raita = null;
+
   const coerceBool = (v) => {
     if (typeof v === 'boolean') return v;
     if (typeof v === 'number') return v !== 0;
     if (typeof v === 'string') return /^(true|yes|y|1)$/i.test(v.trim());
     return null;
   };
+
+  if (addOns == null) {
+    return {
+      raitaLabel: '-',
+      warmersLabel: '-',
+      utensilsLabel: '-',
+    };
+  }
+
   try {
     if (typeof addOns === 'string') {
       const parsed = JSON.parse(addOns);
       if (parsed && typeof parsed === 'object') addOns = parsed;
     }
   } catch {}
+
   if (typeof addOns === 'object' && addOns) {
+    raita   = coerceBool(addOns.raitaPapadPickle ?? addOns.raita ?? addOns.raitaPapad ?? addOns.condiments);
     warmers = coerceBool(addOns.warmers ?? addOns.Warmers);
-    utensils = coerceBool(addOns.utensils ?? addOns.Utensils ?? addOns.cutlery);
+    utensils= coerceBool(addOns.utensils ?? addOns.Utensils ?? addOns.cutlery);
   }
+
   return {
+    raitaLabel:   raita   == null ? '-' : (raita   ? 'Yes' : 'No'),
     warmersLabel: warmers == null ? '-' : (warmers ? 'Yes' : 'No'),
-    utensilsLabel: utensils == null ? '-' : (utensils ? 'Yes' : 'No'),
+    utensilsLabel:utensils== null ? '-' : (utensils? 'Yes' : 'No'),
   };
 }
+
 function renderAddOns(addOns) {
-  const { warmersLabel, utensilsLabel } = parseAddOns(addOns);
+  const { raitaLabel, warmersLabel, utensilsLabel } = parseAddOns(addOns);
   return (
     <div className="space-y-1">
-      <div>Warmers: <span className="font-medium">{warmersLabel}</span></div>
-      <div>Utensils: <span className="font-medium">{utensilsLabel}</span></div>
+      <div>Raita, Papad & Pickle: <span className="font-medium">{raitaLabel}</span></div>
+      <div>Warmers & Serving Spoons: <span className="font-medium">{warmersLabel}</span></div>
+      <div>Plates, Utensils & Napkins: <span className="font-medium">{utensilsLabel}</span></div>
     </div>
   );
 }
+
 function parseAgentReferenceCode(codes) {
   const clean = (v) => (v == null ? '' : String(v).replace(/"/g, '').trim());
   const extract = (obj) =>

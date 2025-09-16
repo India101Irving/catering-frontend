@@ -1,4 +1,4 @@
-// OrderTrays.js — trays flow (with per-category Veg/Non-Veg filter + mobile layout tweaks)
+// OrderTrays.js — trays flow (with per-category Veg/Non-Veg filter + search + mobile layout tweaks)
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -72,6 +72,9 @@ export default function OrderTrays() {
   const [catFilter, setCatFilter] = useState('All'); // 'All' | 'Veg' | 'Non-Veg'
   const isDessert = (c) => String(c || '').toLowerCase() === 'dessert';
 
+  // search (real-time)
+  const [searchText, setSearchText] = useState('');
+
   // cart
   const [cart, setCart] = useState(() => {
     try { return JSON.parse(localStorage.getItem('i101_cart')) || []; }
@@ -128,6 +131,7 @@ export default function OrderTrays() {
   useEffect(() => {
     if (!cat) return;
     setCatFilter('All');
+    setSearchText(''); // clear search when switching category for clarity
   }, [cat]);
 
   const loadPricing = async (session) => {
@@ -189,15 +193,25 @@ export default function OrderTrays() {
     localStorage.removeItem('i101_cart');
   };
 
-  // items after applying Veg/Non-Veg filter (no filter for Dessert)
-  const visibleItems = useMemo(() => {
-    const list = grouped[cat] || [];
-    if (!list.length) return [];
-    if (isDessert(cat) || catFilter === 'All') return list;
-    if (catFilter === 'Veg') return list.filter(it => !isNonVeg(it.Item));
-    if (catFilter === 'Non-Veg') return list.filter(it => isNonVeg(it.Item));
-    return list;
-  }, [grouped, cat, catFilter]);
+// items after applying Veg/Non-Veg filter + search
+const visibleItems = useMemo(() => {
+  const q = searchText.trim().toLowerCase();
+
+  // if there's a search query → search across all items
+  if (q) {
+    return items.filter(it => String(it.Item || '').toLowerCase().includes(q));
+  }
+
+  // otherwise → fall back to current category + veg/non filter
+  const list = grouped[cat] || [];
+  if (!list.length) return [];
+
+  if (isDessert(cat) || catFilter === 'All') return list;
+  if (catFilter === 'Veg') return list.filter(it => !isNonVeg(it.Item));
+  if (catFilter === 'Non-Veg') return list.filter(it => isNonVeg(it.Item));
+  return list;
+}, [items, grouped, cat, catFilter, searchText]);
+
 
   return (
     <div className="min-h-screen bg-[#1c1b1b] text-white p-4 md:p-6 md:pr-[24rem] relative">
@@ -319,28 +333,57 @@ export default function OrderTrays() {
           </div>
         )}
 
-        {/* Minimal Veg / Non-Veg filter (hidden for Dessert) — centered on mobile */}
-        {!isDessert(cat) && (grouped[cat]?.length > 0) && (
-          <div className="mb-3 md:mb-4">
-            <div className="flex justify-center md:justify-start">
-              <div className="inline-flex items-center gap-1 bg-[#2c2a2a] border border-[#3a3939] rounded-full p-1">
-                {['All','Veg','Non-Veg'].map(opt => (
+        {/* Filter + Search row (search is always visible; filter hides for Dessert) */}
+        <div className="mb-3 md:mb-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            {/* Left: Veg/Non-Veg chip group (hidden for Dessert) */}
+            {!isDessert(cat) && (grouped[cat]?.length > 0) ? (
+              <div className="flex justify-center md:justify-start">
+                <div className="inline-flex items-center gap-1 bg-[#2c2a2a] border border-[#3a3939] rounded-full p-1">
+                  {['All','Veg','Non-Veg'].map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => setCatFilter(opt)}
+                      className={`px-3 py-1 rounded-full text-xs md:text-sm transition ${
+                        catFilter === opt
+                          ? 'bg-[#F58735] text-black'
+                          : 'hover:bg-[#3a3939] text-white'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div />
+            )}
+
+            {/* Right: Search */}
+            <div className="flex justify-center md:justify-end">
+              <div className="relative w-full md:w-72">
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="Search items…"
+                  className="w-full px-3 py-2 pr-9 rounded bg-[#2c2a2a] border border-[#3a3939] text-sm focus:outline-none focus:border-[#F58735]"
+                />
+                {searchText ? (
                   <button
-                    key={opt}
-                    onClick={() => setCatFilter(opt)}
-                    className={`px-3 py-1 rounded-full text-xs md:text-sm transition ${
-                      catFilter === opt
-                        ? 'bg-[#F58735] text-black'
-                        : 'hover:bg-[#3a3939] text-white'
-                    }`}
+                    type="button"
+                    onClick={() => setSearchText('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white text-lg leading-none"
+                    aria-label="Clear search"
+                    title="Clear"
                   >
-                    {opt}
+                    ×
                   </button>
-                ))}
+                ) : null}
               </div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Trays UI header with learn button */}
         <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">

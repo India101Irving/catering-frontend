@@ -71,6 +71,7 @@ export default function Payment() {
     nav('/', { replace: true });
   };
 
+  // ------- inputs from Checkout (or storage fallbacks) -------
   const cart     = state?.cart ?? readStoredCart();
   const fallback = readCheckout();
   const customer = state?.customer ?? fallback?.customer ?? {};
@@ -134,33 +135,38 @@ export default function Payment() {
   // --- persistable orderMeta
   const orderMeta = { ...orderMetaRaw, lines: safeLines, lineSummary, packageTraySummary };
 
-  const baseTotals = (() => {
-    const derivedCartTotal = cart.reduce((s, c) => s + (Number(c.qty ?? 1) * Number(c.unit ?? 0)), 0);
-    const method = customer?.method === 'delivery' ? 'delivery' : 'pickup';
-    const dist = Number(customer?.distance ?? 0);
-    const deliveryFee = method === 'delivery' ? (dist <= 20 ? 50 : (dist <= 100 ? 175 : 0)) : 0;
-    const addOnFee = (customer?.warmers ? 10 : 0) + (customer?.utensils ? 10 : 0);
-    const dc = String(customer?.discCode || '').trim().toLowerCase();
-    const discount = dc === 'online10' ? round2(derivedCartTotal * 0.10) : 0;
-    const incoming = state?.totals || fallback?.totals || {};
-    return {
-      cartTotal: Number(incoming.cartTotal ?? derivedCartTotal),
-      deliveryFee: Number(incoming.deliveryFee ?? deliveryFee),
-      addOnFee: Number(incoming.addOnFee ?? addOnFee),
-      discount: Number(incoming.discount ?? discount),
-    };
-  })();
+  // ------- Totals: trust Checkout's numbers (fallbacks only if missing) -------
+  const incomingTotals = state?.totals || fallback?.totals || {};
+  const derivedCartTotal = cart.reduce((s, c) => s + (Number(c.qty ?? 1) * Number(c.unit ?? 0)), 0);
+
+  // delivery fee fallback (rare) based on distance rule
+  const method = customer?.method === 'delivery' ? 'delivery' : 'pickup';
+  const dist = Number(customer?.distance ?? 0);
+  const deliveryFallback = method === 'delivery' ? (dist <= 20 ? 50 : (dist <= 100 ? 175 : 0)) : 0;
+
+  // discount fallback from code (if not provided)
+  const dc = String(customer?.discCode || '').trim().toLowerCase();
+  const discountFallback = dc === 'online10' ? round2(derivedCartTotal * 0.10) : 0;
+
+  // IMPORTANT: addOnFee comes from Checkout (dynamic option pricing) — do NOT recompute here.
+  const baseTotals = {
+    cartTotal:  Number(incomingTotals.cartTotal  ?? derivedCartTotal),
+    deliveryFee:Number(incomingTotals.deliveryFee?? deliveryFallback),
+    addOnFee:   Number(incomingTotals.addOnFee   ?? 0),
+    discount:   Number(incomingTotals.discount   ?? discountFallback),
+  };
 
   const totals = computeTotals(baseTotals);
+
   useEffect(() => { if (!cart || cart.length === 0) nav('/', { replace: true }); }, [cart, nav]);
 
   const currency = (n) => `$${(Number(n) || 0).toFixed(2)}`;
   const summaryRows = useMemo(() => ([
     ['Items',      currency(totals.cartTotal)],
-    ['Delivery',   currency(totals.deliveryFee)],
+    ...(totals.deliveryFee ? [['Delivery',   currency(totals.deliveryFee)]] : []),
     ['Add-ons',    currency(totals.addOnFee)],
     ...(totals.discount ? [['Discount', `-${currency(totals.discount).slice(1)}`]] : []),
-    ['Sales Tax (8.25%)', currency(totals.tax)],
+    [`Sales Tax (${(SALES_TAX_RATE*100).toFixed(2)}%)`, currency(totals.tax)],
   ]), [totals]);
 
   const groupedByName = useMemo(() => {
@@ -203,15 +209,38 @@ export default function Payment() {
   const whenEpoch = whenISO ? new Date(whenISO).getTime() : undefined;
 
   const whenDisplay = useMemo(() => {
-    if (whenISO) { try { return new Date(whenISO).toLocaleString(); } catch {} }
+    try {
+      if (whenISO) {
+        // human 12-hour format, local timezone
+        return new Date(whenISO).toLocaleString('en-US', {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: 'numeric', minute: '2-digit', hour12: true
+        });
+      }
+    } catch {}
     const d = [customer?.pickupDate, customer?.pickupTime].filter(Boolean).join(' ');
     return d || '—';
   }, [whenISO, customer?.pickupDate, customer?.pickupTime]);
 
-  const payloadCustomer = useMemo(
-    () => ({ ...customer, when: whenISO || null, whenEpoch: Number.isFinite(whenEpoch) ? whenEpoch : null }),
-    [customer, whenISO, whenEpoch]
-  );
+  // merge customer + computed when fields, keep new option flags
+ const payloadCustomer = useMemo(() => {
+  // Respect Checkout’s behavior:
+  //   - Checkout ONLY includes `customer.condiments` when checked.
+  //   - If it’s missing/false here, we must NOT show it.
+  const includeCondiments =
+    !!(customer?.condiments ?? customer?.raitaPapadPickle ?? false);
+
+  return {
+    ...customer,
+    when: whenISO || null,
+    whenEpoch: Number.isFinite(whenEpoch) ? whenEpoch : null,
+    // keep explicit boolean for clarity
+    raitaPapadPickle: includeCondiments,
+    warmers: !!customer?.warmers,
+    utensils: !!customer?.utensils,
+  };
+}, [customer, whenISO, whenEpoch]);
+
 
   // ---- Build cartForApi with tray summary and spice per item (if any) ----
   const cartForApi = useMemo(() => {
@@ -255,7 +284,6 @@ export default function Payment() {
     subtotal:   Number(t.subtotal)   || 0,
     grandTotal: Number(t.grandTotal) || 0,
   });
-
   // ---- CARD: create Stripe session ----
   const onConfirmPay = async () => {
     if (submittingCard) return;
@@ -321,7 +349,7 @@ export default function Payment() {
           subtotal:   Number(totals.subtotal)||0,
           grandTotal: Number(totals.grandTotal)||0,
         },
-        customer: payloadCustomer,            // contains specialRequest already
+        customer: payloadCustomer,            // includes raitaPapadPickle / warmers / utensils / specialRequest
         payment: 'cash',
         when: whenISO || null,
         whenEpoch: Number.isFinite(whenEpoch) ? whenEpoch : null,
@@ -552,11 +580,12 @@ export default function Payment() {
                 </>
               ) : null}
 
-              {(payloadCustomer?.warmers || payloadCustomer?.utensils) && (
+              {(payloadCustomer?.raitaPapadPickle || payloadCustomer?.warmers || payloadCustomer?.utensils) && (
                 <DetailRow label="Add-ons">
                   {[
-                    payloadCustomer?.warmers ? 'Sterno warmers' : null,
-                    payloadCustomer?.utensils ? 'Serving utensils' : null
+                    payloadCustomer?.raitaPapadPickle ? 'Raita, Papad & Pickle' : null,
+                    payloadCustomer?.warmers ? 'Warmer Setup & Serving Spoons' : null,
+                    payloadCustomer?.utensils ? 'Disposable Plates, Utensils & Napkins' : null,
                   ].filter(Boolean).join(', ')}
                 </DetailRow>
               )}

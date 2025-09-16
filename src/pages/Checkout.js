@@ -17,8 +17,6 @@ import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 /* =================== Config =================== */
 const REQUIRE_PHONE_VERIFICATION = false; // turn on later if needed
 const ORIGIN_ADDR = '3311 Regent Blvd, Irving TX 75063';
-
-/** 🔧 Feature flag: toggle Cash payments on/off */
 const ALLOW_CASH = false;
 
 const REGION = 'us-east-2';
@@ -48,12 +46,84 @@ const toE164US = (raw) => {
 const pad2 = (n) => String(n).padStart(2, '0');
 const toDateISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 
-/* Helpers to inspect cart items */
+/* =================== Guest count helpers (for options pricing) =================== */
+/**
+ * Default per-tray capacities used for estimating guest count for add-on pricing.
+ * Matches the example: Small = 25 guests.
+ */
+const TRAY_CAPACITY = { small: 25, medium: 40, large: 60, 'extra large': 90, xl: 90 };
+
+function normalizeSizeKeyForCapacity(szRaw = '') {
+  const s = String(szRaw).toLowerCase().trim();
+  if (!s) return '';
+  if (s.includes('extra') && s.includes('large')) return 'extra large';
+  if (s === 'xl' || s.includes('xl')) return 'xl';
+  if (s.includes('large')) return 'large';
+  if (s.includes('medium')) return 'medium';
+  if (s.includes('small')) return 'small';
+  return '';
+}
+function isPerPieceSize(szRaw = '') {
+  const s = String(szRaw).toLowerCase();
+  return s === 'per-piece' || s === 'per piece' || s === 'piece' || s === 'perpiece';
+}
 const getItemSize = (it) => String(it?.size ?? it?.tray ?? it?.Tray ?? it?.variant ?? '').toLowerCase();
-const isPackageSize = (sz) => {
-  const s = String(sz || '').toLowerCase();
-  return s === 'package' || s === 'packages' || s === 'party package';
-};
+
+/**
+ * New tray-flow guest estimate:
+ *   (sum of tray default capacities + total per-piece count)
+ *   /
+ *   (number of trays + number of per-piece line items)
+ * Floored to nearest 5 (e.g., 27.5 -> 25)
+ */
+function estimateGuestsFromCart(cart = []) {
+  let trayCount = 0;
+  let capacitySum = 0;
+  let perPiecePieces = 0;
+  let perPieceLineItems = 0;
+
+  cart.forEach((it) => {
+    const sz = getItemSize(it);
+    const qty = Number(it?.qty ?? it?.quantity ?? 1) || 1;
+
+    const pkg = (s) => {
+      const v = String(s || '').toLowerCase();
+      return v === 'package' || v === 'packages' || v === 'party package';
+    };
+    if (pkg(sz)) return;
+
+    if (isPerPieceSize(sz)) {
+      perPiecePieces += qty;
+      perPieceLineItems += 1;
+      return;
+    }
+
+    const norm = normalizeSizeKeyForCapacity(sz);
+    const capPerTray = TRAY_CAPACITY[norm] || 0;
+    if (capPerTray > 0) {
+      capacitySum += capPerTray * qty;
+      trayCount += qty;
+    }
+  });
+
+  const divisor = Math.max(1, trayCount + perPieceLineItems);
+  const raw = (capacitySum + perPiecePieces) / divisor;
+  const flooredTo5 = Math.floor(raw / 5) * 5;
+  return Math.max(0, flooredTo5);
+}
+
+/** Unified guest count for both flows (packages keep their own guest count) */
+function getGuestCountForOptions(cart = [], isPackageFlow) {
+  if (isPackageFlow) {
+    const pkg = cart.find((it) => {
+      const s = getItemSize(it);
+      const t = String(s || '').toLowerCase();
+      return t === 'package' || t === 'packages' || t === 'party package';
+    });
+    return Number(pkg?.qty ?? 0) || 0; // package qty == guests
+  }
+  return estimateGuestsFromCart(cart);
+}
 
 /* =================== Hours helpers =================== */
 async function getDocClient() {
@@ -106,8 +176,6 @@ function minToLabel(mins) {
   h = h % 12; if (h === 0) h = 12;
   return `${h}:${String(m).padStart(2,'0')} ${am ? 'AM' : 'PM'}`;
 }
-
-/* ====== Filter slots by the global earliest allowed time (now + 18h) ====== */
 function filterSlotsByEarliest(dateISO, slots, earliestMs) {
   const base = new Date(`${dateISO}T00:00:00`);
   const out = [];
@@ -158,16 +226,13 @@ function loadGoogleMaps(key) {
     if (!key) return reject(new Error('No Google Maps key'));
     if (window.google?.maps) return resolve(window.google);
 
-    // Remove any prior script to avoid caching a bad weekly build
+    // Remove any prior script to avoid caching a bad build
     const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
     if (existing) existing.remove();
 
-    // Pin to stable channel to avoid p.zI regression
     const src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&v=quarterly`;
     const s = document.createElement('script');
-    s.src = src;
-    s.async = true;
-    s.defer = true;
+    s.src = src; s.async = true; s.defer = true;
     s.onerror = () => reject(new Error('Failed to load Google Maps JS SDK'));
     s.onload = () => resolve(window.google);
     document.head.appendChild(s);
@@ -251,15 +316,11 @@ export default function Checkout() {
 
   /* form state */
   const saved = (() => { try { return JSON.parse(localStorage.getItem('i101_customer')) || null; } catch { return null; }})();
-  // ✅ Payment uses feature-flag. If cash was in draft but disabled now, force to 'card'.
   const [payment,  setPayment]  = useState(() => {
     const p = draft?.payment ?? 'card';
     return ALLOW_CASH ? p : 'card';
   });
-  // If flag flips at runtime or old draft tries to set cash when disabled
-  useEffect(() => {
-    if (!ALLOW_CASH && payment === 'cash') setPayment('card');
-  }, [payment]);
+  useEffect(() => { if (!ALLOW_CASH && payment === 'cash') setPayment('card'); }, [payment]);
 
   const [method,   setMethod]   = useState(draft?.customer?.method ?? 'pickup');
 
@@ -276,11 +337,12 @@ export default function Checkout() {
   const [slots, setSlots] = useState([]);
   const [hours, setHours] = useState({ pickupHours: {}, deliveryHours: {} });
 
-  // add-ons & codes (sidebar)
-  const [warmers,  setWarmers]  = useState(!!draft?.customer?.warmers);
-  const [utensils, setUtensils] = useState(!!draft?.customer?.utensils);
+  // add-ons & codes (Options + sidebar)
+  const [condiments, setCondiments] = useState(draft?.customer?.condiments ?? true); // default checked
+  const [warmers,  setWarmers]  = useState(!!draft?.customer?.warmers);   // default unchecked
+  const [utensils, setUtensils] = useState(!!draft?.customer?.utensils);  // default unchecked
   const [refCode,  setRefCode]  = useState(draft?.customer?.refCode ?? '');
-  const [discCode, setDiscCode] = useState(draft?.customer?.discCode ?? ''); // default
+  const [discCode, setDiscCode] = useState(draft?.customer?.discCode ?? '');
 
   // NEW: special request comment (sidebar + mobile summary)
   const [specialRequest, setSpecialRequest] = useState(draft?.customer?.specialRequest ?? '');
@@ -294,8 +356,6 @@ export default function Checkout() {
     const d = new Date(); d.setDate(d.getDate() + MAX_DAYS_AHEAD);
     return toDateISO(d);
   }, []);
-
-  // keep selected date within min/max if user had something outside
   useEffect(() => {
     if (!pickupDate) return;
     if (pickupDate < minDateISO) setPickupDate(minDateISO);
@@ -303,9 +363,7 @@ export default function Checkout() {
   }, [pickupDate, minDateISO, maxDateISO]);
 
   /* cash ⇒ force pickup (only when cash is allowed) */
-  useEffect(() => {
-    if (ALLOW_CASH && payment === 'cash') setMethod('pickup');
-  }, [payment]);
+  useEffect(() => { if (ALLOW_CASH && payment === 'cash') setMethod('pickup'); }, [payment]);
 
   /* ----- Google SDK load ----- */
   const addr1Ref = useRef(null);
@@ -315,7 +373,7 @@ export default function Checkout() {
 
   useEffect(() => {
     let mounted = true;
-    if (!GOOGLE_MAPS_KEY) return; // fallback to manual
+    if (!GOOGLE_MAPS_KEY) return;
     loadGoogleMaps(GOOGLE_MAPS_KEY)
       .then(() => { if (mounted) setSdkReady(true); })
       .catch(() => {});
@@ -327,11 +385,11 @@ export default function Checkout() {
     if (!sdkReady) return;
     if (method !== 'delivery') return;
     if (!addr1Ref.current) return;
-    if (!window.google?.maps?.places) return; // guard
+    if (!window.google?.maps?.places) return;
 
     const google = window.google;
     const ac = new google.maps.places.Autocomplete(addr1Ref.current, {
-      componentRestrictions: { country: 'US' }, // string, not array
+      componentRestrictions: { country: 'US' },
       types: ['address'],
       fields: ['address_components', 'formatted_address', 'place_id'],
     });
@@ -355,8 +413,6 @@ export default function Checkout() {
         if (postal) setZip(postal);
         setAddressVerified(Boolean(line1 && postal));
       } catch (e) {
-        // Defensive: don't allow a weird payload to break UI
-        // eslint-disable-next-line no-console
         console.error('[Autocomplete place_changed]', e);
         setAddressVerified(false);
       }
@@ -406,14 +462,43 @@ export default function Checkout() {
     return () => { if (distTimer.current) clearTimeout(distTimer.current); };
   }, [method, addr1, addr2, city, st, zip, sdkReady]);
 
-  /* ----- Delivery fee rules ----- */
+  /* ===== orderMeta / guestEstimate ===== */
+  const isPackageFlow = useMemo(
+    () => cart.some((it) => {
+      const s = getItemSize(it);
+      const t = String(s || '').toLowerCase();
+      return t === 'package' || t === 'packages' || t === 'party package';
+    }),
+    [cart]
+  );
+
+  const orderMeta = useMemo(() => {
+    if (state?.orderMeta) return state.orderMeta;
+    if (isPackageFlow) {
+      try { return JSON.parse(localStorage.getItem('i101_order_meta') || '{}'); } catch { return {}; }
+    }
+    return {};
+  }, [state?.orderMeta, isPackageFlow]);
+
+  const guestEstimate = useMemo(() => {
+    if (orderMeta?.guests) return orderMeta.guests;
+    return estimateGuestsFromCart(cart);
+  }, [cart, orderMeta]);
+
+  /* ----- Options dynamic pricing ----- */
+  const guestCountForOptions = useMemo(
+    () => getGuestCountForOptions(cart, isPackageFlow),
+    [cart, isPackageFlow]
+  );
+  const warmersPriceDisplay  = round2((orderMeta?.guests ?? guestEstimate) * 1);
+  const utensilsPriceDisplay = round2((orderMeta?.guests ?? guestEstimate) * 1);
+  const warmersCharge  = warmers  ? warmersPriceDisplay  : 0;
+  const utensilsCharge = utensils ? utensilsPriceDisplay : 0;
+  const addOnFee = warmersCharge + utensilsCharge;
+
+  const discount = (discCode || '').trim().toLowerCase() === 'online10' ? round2(cartTotal * 0.10) : 0;
   const deliveryFee = method === 'pickup' ? 0 :
     (distance <= 20 ? 50 : (distance <= 100 ? 175 : 0));
-
-  /* ----- Discount: online10 = 10% off items subtotal ----- */
-  const discount = (discCode || '').trim().toLowerCase() === 'online10' ? round2(cartTotal * 0.10) : 0;
-
-  const addOnFee = (warmers ? 10 : 0) + (utensils ? 10 : 0);
   const grandTotal = Number((cartTotal + deliveryFee + addOnFee - discount).toFixed(2));
 
   const summaryRows = useMemo(() => ([
@@ -426,7 +511,6 @@ export default function Checkout() {
   /* ----- Hours: load + $500 rule + build slots + 18h filter ----- */
   useEffect(() => { (async () => { const h = await loadHours(); setHours(h); })(); }, []);
 
-  // choose which map to use by $500 rule
   const effectiveHoursMap = useMemo(() => {
     if (method === 'pickup') return hours.pickupHours || {};
     return grandTotal < 500 ? (hours.pickupHours || {}) : (hours.deliveryHours || {});
@@ -474,79 +558,12 @@ export default function Checkout() {
     try { await sendUserAttributeVerificationCode({ userAttributeKey: 'phone_number' }); } catch (err) { setVerifyError(err?.message || 'Could not resend code'); }
   };
 
-  /* ===== orderMeta ===== */
-  const isPackageFlow = useMemo(
-    () => cart.some((it) => isPackageSize(getItemSize(it))),
-    [cart]
-  );
-
-  const orderMeta = useMemo(() => {
-    if (state?.orderMeta) return state.orderMeta;
-    if (isPackageFlow) {
-      try { return JSON.parse(localStorage.getItem('i101_order_meta') || '{}'); } catch { return {}; }
-    }
-    return {};
-  }, [state?.orderMeta, isPackageFlow]);
-
-  const showTraySummary =
-    isPackageFlow &&
-    Array.isArray(orderMeta?.lines) &&
-    orderMeta.lines.length > 0;
-
-  /* ---- collect spice selections from cart + package meta ---- */
-  const spiceSelections = useMemo(() => {
-    const out = [];
-    // From Package recommendation (lines)
-    (orderMeta?.lines || []).forEach((ln) => {
-      if (ln?.SpiceLevel) {
-        out.push({
-          name: ln.name,
-          size: ln.size,
-          qty: ln.qty,
-          spiceLevel: ln.SpiceLevel,
-          source: 'package',
-        });
-      }
-    });
-    // From Trays cart items (extras.spiceLevel)
-    cart.forEach((c) => {
-      const sl = c?.extras?.spiceLevel;
-      if (sl) {
-        out.push({
-          name: c.name,
-          size: c.size,
-          qty: c.qty,
-          spiceLevel: sl,
-          source: 'trays',
-        });
-      }
-    });
-    return out;
-  }, [orderMeta, cart]);
-
   /* Back destination */
   const derivedReturnTo = state?.returnTo || (isPackageFlow ? '/OrderPackage' : '/OrderTrays');
   const handleBack = () => { nav(derivedReturnTo, { replace: true }); };
 
-  // keep a lightweight draft
-  useEffect(() => {
-    const draftCustomer = {
-      method,
-      pickupDate,
-      pickupTime,
-      distance,
-      address: { addr1, addr2, city, state: st, zip },
-      warmers,
-      utensils,
-      refCode,
-      discCode,
-      specialRequest, // NEW
-    };
-    sessionStorage.setItem(
-      'i101_checkout_draft',
-      JSON.stringify({ customer: draftCustomer, payment })
-    );
-  }, [method, pickupDate, pickupTime, distance, addr1, addr2, city, st, zip, warmers, utensils, refCode, discCode, payment, specialRequest]);
+  /* ---------- Mobile summary drawer state ---------- */
+  const [showSummaryMobile, setShowSummaryMobile] = useState(false);
 
   /* ----- Ready / continue ----- */
   const phoneOk = REQUIRE_PHONE_VERIFICATION ? (!!phone && phoneVerified) : true;
@@ -558,6 +575,7 @@ export default function Checkout() {
   const handleContinue = () => {
     const whenISO = buildWhenISO(pickupDate, pickupTime);
 
+    // Build customer object while OMITTING 'condiments' if unchecked.
     const customer = {
       name:  (custName || '').trim(),
       email: (custEmail || '').trim(),
@@ -568,10 +586,13 @@ export default function Checkout() {
       when: whenISO,
       distance,
       address: { addr1: addr1.trim(), addr2: addr2.trim(), city: city.trim(), state: st.trim(), zip: zip.trim() },
-      warmers, utensils,
-      refCode: refCode.trim(), discCode: discCode.trim(),
+      warmers,
+      utensils,
+      ...(condiments ? { condiments: true } : {}),
+      refCode: refCode.trim(),
+      discCode: discCode.trim(),
       addressVerified,
-      specialRequest: specialRequest.trim(), // NEW
+      specialRequest: specialRequest.trim(),
     };
 
     const totals = { cartTotal, deliveryFee, addOnFee, discount, grandTotal };
@@ -584,26 +605,22 @@ export default function Checkout() {
       localStorage.removeItem('i101_customer');
     }
 
-    // Include spice selections explicitly, in addition to cart/orderMeta
     const checkoutPayload = {
       cart,
       customer,
       payment,
       totals,
       when: whenISO,
-      orderMeta,
+      orderMeta: state?.orderMeta || {},
       returnTo: derivedReturnTo,
-      spiceSelections, // NEW
+      spiceSelections: [],
     };
+
     sessionStorage.setItem('i101_checkout', JSON.stringify(checkoutPayload));
     sessionStorage.removeItem('i101_checkout_draft');
     nav('/payment', { state: checkoutPayload });
   };
 
-  /* ---------- Mobile summary drawer state ---------- */
-  const [showSummaryMobile, setShowSummaryMobile] = useState(false);
-
-  /* ---------- UI ---------- */
   return (
     <div className="min-h-screen bg-[#1c1b1b] text-white p-4 md:p-6 md:pr-[24rem] relative">
       {/* Header (desktop fixed, mobile inline) */}
@@ -628,7 +645,7 @@ export default function Checkout() {
         ) : null}
       </div>
 
-      {/* Mobile topbar sign-out (to match other pages) */}
+      {/* Mobile topbar sign-out */}
       <div className="md:hidden flex justify-end mb-2">
         {currentUser ? (
           <button
@@ -649,7 +666,7 @@ export default function Checkout() {
 
       {/* title */}
       <div className="text-center md:text-left">
-        <h1 className="text-2xl md:text-3xl font-bold text-orange-400">Checkout</h1>
+<h1 className="text-2xl md:text-3xl font-bold text-orange-400">Checkout</h1>
       </div>
       <div className="text-center md:text-left">
         <button
@@ -671,9 +688,9 @@ export default function Checkout() {
           ))}
         </ul>
 
-        {/* Special request (NEW) */}
+        {/* Special request */}
         <div className="mb-4">
-          <div className="text-sm font-semibold mb-2">Special request</div>
+          <div className="text-sm font-semibold mb-2">Special Requests</div>
           <textarea
             rows={3}
             value={specialRequest}
@@ -696,18 +713,36 @@ export default function Checkout() {
           </label>
         </div>
 
-        {/* Options */}
+        {/* Options — desktop */}
         <div className="mb-4">
           <div className="text-sm font-semibold mb-2">Options</div>
           <label className="block text-sm">
-            <input type="checkbox" checked={warmers} onChange={() => setWarmers(!warmers)} /> Sterno warmers (+$10)
+            <input
+              type="checkbox"
+              checked={condiments}
+              onChange={() => setCondiments(!condiments)}
+            />{' '}
+            Include Raita, Papad &amp; Pickle (free)
           </label>
           <label className="block text-sm">
-            <input type="checkbox" checked={utensils} onChange={() => setUtensils(!utensils)} /> Serving utensils (+$10)
+            <input
+              type="checkbox"
+              checked={warmers}
+              onChange={() => setWarmers(!warmers)}
+            />{' '}
+            Warmer Setup &amp; Serving Spoons (+${warmersPriceDisplay.toFixed(2)})
+          </label>
+          <label className="block text-sm">
+            <input
+  type="checkbox"
+  checked={utensils}
+  onChange={() => setUtensils(!utensils)}
+/>
+{' '}
+            Disposable Plates, Utensils &amp; Napkins (+${utensilsPriceDisplay.toFixed(2)})
           </label>
         </div>
 
-        {/* Grand total + Continue */}
         <div className="flex justify-between font-semibold py-2 border-t border-[#3a3939]">
           <span>Grand&nbsp;Total</span><span>${grandTotal.toFixed(2)}</span>
         </div>
@@ -730,8 +765,8 @@ export default function Checkout() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10 max-w-5xl">
         {/* LEFT COLUMN */}
         <div className="space-y-8">
-          {/* Tray Summary — only for valid package flows */}
-          {showTraySummary && (
+          {/* Tray Summary (package flow) */}
+          {isPackageFlow && Array.isArray(orderMeta?.lines) && orderMeta.lines.length > 0 && (
             <section className="rounded-xl border border-[#3a3939] bg-[#232222] p-4">
               <h2 className="text-xl font-semibold text-[#F58735] mb-2">Tray Summary</h2>
               <ul className="text-sm space-y-1">
@@ -988,7 +1023,7 @@ export default function Checkout() {
               ))}
             </ul>
 
-            {/* Special request (NEW) */}
+            {/* Special request */}
             <div className="mb-4">
               <div className="text-sm font-semibold mb-2">Special request</div>
               <textarea
@@ -1013,18 +1048,35 @@ export default function Checkout() {
               </label>
             </div>
 
-            {/* Options */}
+            {/* Options — mobile drawer */}
             <div className="mb-4">
               <div className="text-sm font-semibold mb-2">Options</div>
               <label className="block text-sm">
-                <input type="checkbox" checked={warmers} onChange={() => setWarmers(!warmers)} /> Sterno warmers (+$10)
+                <input
+                  type="checkbox"
+                  checked={condiments}
+                  onChange={() => setCondiments(!condiments)}
+                />{' '}
+                Include Raita, Papad &amp; Pickle (free)
               </label>
               <label className="block text-sm">
-                <input type="checkbox" checked={utensils} onChange={() => setUtensils(!utensils)} /> Serving utensils (+$10)
+                <input
+                  type="checkbox"
+                  checked={warmers}
+                  onChange={() => setWarmers(!warmers)}
+                />{' '}
+                Warmer Setup &amp; Serving Spoons (+${warmersPriceDisplay.toFixed(2)})
+              </label>
+              <label className="block text-sm">
+                <input
+                  type="checkbox"
+                  checked={utensils}
+                  onChange={() => setUtensils(!utensils)}
+                />{' '}
+                Disposable Plates, Utensils &amp; Napkins (+${utensilsPriceDisplay.toFixed(2)})
               </label>
             </div>
 
-            {/* Grand total + Continue */}
             <div className="flex justify-between font-semibold py-2 border-t border-[#3a3939]">
               <span>Grand&nbsp;Total</span><span>${grandTotal.toFixed(2)}</span>
             </div>

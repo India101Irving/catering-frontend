@@ -107,6 +107,11 @@ export default function OrderPackage() {
   // selection & inputs
   const [selection, setSelection] = useState(DEFAULT_PACKAGES[0]);
   const [guests, setGuests]       = useState(15);
+
+  // NEW: guest input string for mobile-friendly editing
+  const [guestsStr, setGuestsStr] = useState('15');
+  useEffect(() => { setGuestsStr(String(guests)); }, [guests]);
+
   const [appetite, setAppetite]   = useState('regular'); // 'regular' | 'heavy'
   const [showGuestLimit, setShowGuestLimit] = useState(false);
 
@@ -307,14 +312,42 @@ export default function OrderPackage() {
     });
   };
 
-  // guests
-  const handleGuestChange = (rawVal) => {
-    const raw = Number(rawVal || 0);
-    const clamped = Math.max(15, Math.min(raw, 100));
-    const rounded = Math.round(clamped / 5) * 5;
-    if (raw > 100 || rounded > 100) setShowGuestLimit(true);
-    setGuests(Math.min(rounded, 100));
+  // -------------- NEW: Guests input handlers (mobile-friendly) --------------
+  const clampRound5 = (n) => {
+    const min = 15, max = 100;
+    if (!Number.isFinite(n)) return min;
+    const clamped = Math.max(min, Math.min(n, max));
+    return Math.round(clamped / 5) * 5;
   };
+
+  const handleGuestsChangeTyping = (e) => {
+    const raw = e.target.value;
+    if (raw === '') { setGuestsStr(''); return; }       // allow clearing while typing
+    if (!/^\d+$/.test(raw)) return;                     // digits only
+    const normalized = String(parseInt(raw, 10));       // remove leading zeros
+    setGuestsStr(normalized);
+  };
+
+  const handleGuestsBlur = () => {
+    if (guestsStr === '' || !/^\d+$/.test(guestsStr)) { setGuests(15); return; }
+    const n = clampRound5(parseInt(guestsStr, 10));
+    if (n > 100) setShowGuestLimit(true);
+    setGuests(n);
+  };
+
+  const incGuests = () => {
+    const base = guestsStr === '' ? 15 : parseInt(guestsStr, 10) || 15;
+    const next = Math.min(100, clampRound5(base + 5));
+    if (next > 100) setShowGuestLimit(true);
+    setGuests(next);
+  };
+
+  const decGuests = () => {
+    const base = guestsStr === '' ? 15 : parseInt(guestsStr, 10) || 15;
+    const next = Math.max(15, clampRound5(base - 5));
+    setGuests(next);
+  };
+  // -------------------------------------------------------------------------
 
   // tray allocation
   const sizeForGuests = (g) => {
@@ -674,14 +707,36 @@ export default function OrderPackage() {
           </div>
           <div className="flex items-center gap-3 flex-1 justify-center sm:justify-start">
             <label className="text-sm text-gray-300">Guests</label>
-            <input
-              type="number"
-              step={5}
-              min={15}
-              value={guests}
-              onChange={e => handleGuestChange(e.target.value)}
-              className="bg-[#2c2a2a] border border-[#3a3939] rounded px-3 py-2 w-24 md:w-28 text-right"
-            />
+            {/* NEW: mobile-friendly stepper for guests */}
+            <div className="inline-flex items-stretch rounded overflow-hidden border border-[#3a3939]">
+              <button
+                type="button"
+                onClick={decGuests}
+                className="px-3 py-2 bg-[#2c2a2a] text-white hover:bg-[#3a3939] active:opacity-80"
+                aria-label="Decrease guests"
+              >
+                −
+              </button>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="\d*"
+                value={guestsStr}
+                onChange={handleGuestsChangeTyping}
+                onBlur={handleGuestsBlur}
+                onFocus={(e) => e.target.select()}
+                className="w-20 md:w-24 text-center bg-[#2c2a2a] text-white px-2 py-2 outline-none"
+                aria-label="Guests"
+              />
+              <button
+                type="button"
+                onClick={incGuests}
+                className="px-3 py-2 bg-[#2c2a2a] text-white hover:bg-[#3a3939] active:opacity-80"
+                aria-label="Increase guests"
+              >
+                +
+              </button>
+            </div>
           </div>
         </div>
 

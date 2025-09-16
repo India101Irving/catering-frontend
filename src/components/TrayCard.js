@@ -16,7 +16,7 @@ export default function TrayCard({ item, onAdd }) {
   const isPerPiece = item.Type === 'pc';
   const showSpice = (item.Category || '').toLowerCase() === 'main course';
 
-  // Non‑Veg detection (by name keywords)
+  // Non-Veg detection (by name keywords)
   const nonVeg = useMemo(() => {
     const name = String(item.Item || '').toLowerCase();
     const tokens = ['chicken','goat','lamb','fish','prawn','murg','mutton','murgh','ghost','maans','macchi','sea food','shrimp'];
@@ -24,8 +24,15 @@ export default function TrayCard({ item, onAdd }) {
   }, [item]);
 
   const [size, setSize] = useState(isPerPiece ? 'per-piece' : (sizes[0]?.key ?? ''));
-  const [qty, setQty]   = useState(1);
   const [spice, setSpice] = useState('Medium'); // Mild | Medium | Spicy (default Medium)
+
+  // ---- Quantity: keep string for input, derive number for logic ----
+  const [qtyStr, setQtyStr] = useState('1');
+  const qtyNum = useMemo(() => {
+    const n = Number(qtyStr);
+    if (!Number.isFinite(n)) return 0;
+    return Math.floor(n);
+  }, [qtyStr]);
 
   const unit = useMemo(() => {
     if (isPerPiece) return Number(item.SalePrice) || 0;
@@ -33,11 +40,40 @@ export default function TrayCard({ item, onAdd }) {
   }, [isPerPiece, item, size]);
 
   const canAdd = useMemo(() => {
-    if (qty < 1) return false;
+    if (qtyNum < 1) return false;
     if (!isPerPiece && !size) return false;
     if (!unit || Number.isNaN(unit)) return false;
     return true;
-  }, [qty, isPerPiece, size, unit]);
+  }, [qtyNum, isPerPiece, size, unit]);
+
+  // --- Qty handlers (mobile-friendly) ---
+  const clamp = (n) => (n < 1 ? 1 : n);
+  const handleQtyChange = (e) => {
+    const raw = e.target.value;
+
+    // Allow empty string while typing (so backspace clears)
+    if (raw === '') { setQtyStr(''); return; }
+
+    // Accept only digits
+    if (!/^\d+$/.test(raw)) return;
+
+    // Normalize: remove leading zeros
+    const normalized = String(parseInt(raw, 10));
+    setQtyStr(normalized);
+  };
+  const handleQtyBlur = () => {
+    if (qtyStr === '' || !/^\d+$/.test(qtyStr)) { setQtyStr('1'); return; }
+    const n = clamp(parseInt(qtyStr, 10));
+    setQtyStr(String(n));
+  };
+  const inc = () => {
+    const n = clamp(qtyNum || 0) + 1;
+    setQtyStr(String(n));
+  };
+  const dec = () => {
+    const n = clamp((qtyNum || 1) - 1);
+    setQtyStr(String(n));
+  };
 
   return (
     <div className="bg-[#2c2a2a] rounded-lg p-4 shadow h-full flex flex-col">
@@ -53,7 +89,7 @@ export default function TrayCard({ item, onAdd }) {
         </div>
         {nonVeg && (
           <span className="ml-2 shrink-0 text-[11px] uppercase tracking-wide bg-red-500/20 text-red-300 border border-red-400/40 rounded px-2 py-0.5">
-            Non‑Veg
+            Non-Veg
           </span>
         )}
       </div>
@@ -125,17 +161,41 @@ export default function TrayCard({ item, onAdd }) {
         </div>
       )}
 
-      {/* Quantity */}
-      <label className="block mt-4 text-sm">
-        Qty:&nbsp;
-        <input
-          type="number"
-          min="1"
-          value={qty}
-          onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
-          className="w-24 px-3 py-1 rounded text-black"
-        />
-      </label>
+      {/* Quantity (mobile-friendly stepper) */}
+      <div className="mt-4">
+        <div className="text-sm mb-2">Qty:</div>
+        <div className="inline-flex items-stretch rounded overflow-hidden border border-[#4a4949]">
+          <button
+            type="button"
+            onClick={dec}
+            className="px-3 py-1 bg-[#3a3939] text-white hover:bg-[#4a4949] active:opacity-80"
+            aria-label="Decrease quantity"
+          >
+            −
+          </button>
+          <input
+            // Use text + numeric hints for the best mobile keypad & free editing
+            type="text"
+            inputMode="numeric"
+            pattern="\d*"
+            min="1"
+            value={qtyStr}
+            onChange={handleQtyChange}
+            onBlur={handleQtyBlur}
+            onFocus={(e) => e.target.select()}
+            className="w-16 text-center bg-white text-black px-2 py-1 outline-none"
+            aria-label="Quantity"
+          />
+          <button
+            type="button"
+            onClick={inc}
+            className="px-3 py-1 bg-[#3a3939] text-white hover:bg-[#4a4949] active:opacity-80"
+            aria-label="Increase quantity"
+          >
+            +
+          </button>
+        </div>
+      </div>
 
       {/* Footer pinned to bottom */}
       <div className="mt-auto pt-3">
@@ -143,7 +203,7 @@ export default function TrayCard({ item, onAdd }) {
           <button
             disabled={!canAdd}
             onClick={() =>
-              onAdd(size, qty, unit, showSpice ? { spiceLevel: spice } : {})
+              onAdd(size, Math.max(1, qtyNum), unit, showSpice ? { spiceLevel: spice } : {})
             }
             className={[
               "px-4 py-2 rounded text-sm",

@@ -221,23 +221,49 @@ function buildWhenISO(dateISO, timeLabel) {
 }
 
 /* =================== Google Maps JS SDK =================== */
+/* =================== Google Maps JS SDK =================== */
 function loadGoogleMaps(key) {
-  return new Promise((resolve, reject) => {
-    if (!key) return reject(new Error('No Google Maps key'));
-    if (window.google?.maps) return resolve(window.google);
+  if (!key) return Promise.reject(new Error('No Google Maps key'));
 
-    // Remove any prior script to avoid caching a bad build
-    const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
-    if (existing) existing.remove();
+  // If already loaded (and Places is there), reuse immediately
+  if (window.google?.maps?.places) return Promise.resolve(window.google);
+  if (window.google?.maps) return Promise.resolve(window.google);
 
-    const src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&v=quarterly`;
+  // Reuse a single global promise so multiple callers don't inject multiple scripts
+  if (window.__gmapsInitPromise) return window.__gmapsInitPromise;
+
+  window.__gmapsInitPromise = new Promise((resolve, reject) => {
+    // If <script> already exists (from another route), just wait for it
+    const existing = document.querySelector('script[data-gmaps-loader="true"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.google));
+      existing.addEventListener('error', (e) => {
+        delete window.__gmapsInitPromise;
+        reject(e);
+      });
+      return;
+    }
+
+    const src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+      key
+    )}&libraries=places&v=weekly&loading=async`;
+
     const s = document.createElement('script');
-    s.src = src; s.async = true; s.defer = true;
-    s.onerror = () => reject(new Error('Failed to load Google Maps JS SDK'));
+    s.src = src;
+    s.async = true;
+    s.defer = true;
+    s.setAttribute('data-gmaps-loader', 'true');
     s.onload = () => resolve(window.google);
+    s.onerror = (e) => {
+      delete window.__gmapsInitPromise;
+      reject(new Error('Failed to load Google Maps JS SDK'));
+    };
     document.head.appendChild(s);
   });
+
+  return window.__gmapsInitPromise;
 }
+
 function distMatrixMiles(google, origin, destination) {
   return new Promise((resolve) => {
     try {
@@ -611,7 +637,7 @@ export default function Checkout() {
       payment,
       totals,
       when: whenISO,
-      orderMeta: state?.orderMeta || {},
+      orderMeta: orderMeta || {},
       returnTo: derivedReturnTo,
       spiceSelections: [],
     };

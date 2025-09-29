@@ -78,8 +78,13 @@ export default function Payment() {
   const payment  = (state?.payment ?? fallback?.payment ?? 'card').toLowerCase(); // 'card' | 'cash'
   const returnTo = state?.returnTo || '/order/package';
 
-  // ------- orderMeta + lines -------
-  const orderMetaRaw = state?.orderMeta ?? fallback?.orderMeta ?? readOrderMeta();
+  // ------- orderMeta + lines (prefer a source that actually has lines) -------
+  const pickMetaWithLines = (m) => m && Array.isArray(m.lines) && m.lines.length > 0 ? m : null;
+  const orderMetaRaw =
+    pickMetaWithLines(state?.orderMeta) ||
+    pickMetaWithLines(fallback?.orderMeta) ||
+    readOrderMeta() ||
+    {};
   const rawLines = Array.isArray(orderMetaRaw?.lines) ? orderMetaRaw.lines : [];
 
   // ---- spiceSelections (prefer what Checkout passed; otherwise derive) ----
@@ -223,24 +228,23 @@ export default function Payment() {
   }, [whenISO, customer?.pickupDate, customer?.pickupTime]);
 
   // merge customer + computed when fields, keep new option flags
- const payloadCustomer = useMemo(() => {
-  // Respect Checkout’s behavior:
-  //   - Checkout ONLY includes `customer.condiments` when checked.
-  //   - If it’s missing/false here, we must NOT show it.
-  const includeCondiments =
-    !!(customer?.condiments ?? customer?.raitaPapadPickle ?? false);
+  const payloadCustomer = useMemo(() => {
+    // Respect Checkout’s behavior:
+    //   - Checkout ONLY includes `customer.condiments` when checked.
+    //   - If it’s missing/false here, we must NOT show it.
+    const includeCondiments =
+      !!(customer?.condiments ?? customer?.raitaPapadPickle ?? false);
 
-  return {
-    ...customer,
-    when: whenISO || null,
-    whenEpoch: Number.isFinite(whenEpoch) ? whenEpoch : null,
-    // keep explicit boolean for clarity
-    raitaPapadPickle: includeCondiments,
-    warmers: !!customer?.warmers,
-    utensils: !!customer?.utensils,
-  };
-}, [customer, whenISO, whenEpoch]);
-
+    return {
+      ...customer,
+      when: whenISO || null,
+      whenEpoch: Number.isFinite(whenEpoch) ? whenEpoch : null,
+      // keep explicit boolean for clarity
+      raitaPapadPickle: includeCondiments,
+      warmers: !!customer?.warmers,
+      utensils: !!customer?.utensils,
+    };
+  }, [customer, whenISO, whenEpoch]);
 
   // ---- Build cartForApi with tray summary and spice per item (if any) ----
   const cartForApi = useMemo(() => {
@@ -284,6 +288,7 @@ export default function Payment() {
     subtotal:   Number(t.subtotal)   || 0,
     grandTotal: Number(t.grandTotal) || 0,
   });
+
   // ---- CARD: create Stripe session ----
   const onConfirmPay = async () => {
     if (submittingCard) return;
@@ -302,7 +307,7 @@ export default function Payment() {
         lineSummary,
         orderMeta,
         packageTraySummary,
-        spiceSelections, // NEW
+        spiceSelections, // include spice info
       };
 
       const payload = {
@@ -357,7 +362,7 @@ export default function Payment() {
         lineSummary,
         orderMeta,
         packageTraySummary,
-        spiceSelections,                      // NEW: top-level for easy ingestion
+        spiceSelections,                      // top-level for easy ingestion
       };
 
       const res = await fetch(CREATE_ORDER_API, {
@@ -404,7 +409,6 @@ export default function Payment() {
 
   /* -------- Mobile summary drawer state -------- */
   const [showSummaryMobile, setShowSummaryMobile] = useState(false);
-
   return (
     <div className="min-h-screen bg-[#1c1b1b] text-white p-4 md:p-6 md:pr-[24rem] relative">
       {/* Header (desktop fixed, mobile inline) */}

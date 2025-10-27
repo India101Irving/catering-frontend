@@ -7,10 +7,10 @@ import LargeTrayImg from "../assets/trays/LargeTray.png";
 import ExtraLargeTrayImg from "../assets/trays/ExtraLargeTray.png";
 
 const DEFAULT_CAPS = {
-  SmallTray:       { label: "Small Tray",       serves: "up to ~15 guests" },
-  MediumTray:      { label: "Medium Tray",      serves: "up to ~25 guests" },
-  LargeTray:       { label: "Large Tray",       serves: "up to ~35 guests" },
-  ExtraLargeTray:  { label: "Extra Large Tray", serves: "up to ~50 guests" },
+  SmallTray:       { label: "Small Tray",       serves: "10-15 guests" },
+  MediumTray:      { label: "Medium Tray",      serves: "20-25 guests" },
+  LargeTray:       { label: "Large Tray",       serves: "30-35 guests" },
+  ExtraLargeTray:  { label: "Extra Large Tray", serves: "40-50 guests" },
 };
 
 export default function TraySizesModal({

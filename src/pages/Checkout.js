@@ -17,7 +17,7 @@ import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 /* =================== Config =================== */
 const REQUIRE_PHONE_VERIFICATION = false; // turn on later if needed
 const ORIGIN_ADDR = '3311 Regent Blvd, Irving TX 75063';
-const ALLOW_CASH = true;
+const ALLOW_CASH = false;
 
 const REGION = 'us-east-2';
 const HOURS_TABLE = 'catering-hours-dev';

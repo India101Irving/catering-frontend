@@ -342,7 +342,7 @@ const updatePaymentStatus = async (order, status) => {
       page += 1;
 
       const methodLabel = capitalizeFirst((o.method || o.type || '').toString());
-      const whenLabel = formatDateTime(o.when);
+      const whenLabel = formatDateTimeWithDay(o.when);
       const rightText = `${methodLabel}${methodLabel && whenLabel ? ' – ' : ''}${whenLabel}`;
       const paymentText = `Payment: ${stringifyPaymentForCell(o.payment) || '-'}`;
       const placedAtText = `Placed At: ${formatDateTime(o.placedAt)}`;
@@ -726,6 +726,15 @@ function formatDateTime(v) {
   const t = parseMaybeDate(v);
   if (!t) return '';
   return new Date(t).toLocaleString();
+}
+// Like formatDateTime, but leads with the DAY OF WEEK for kitchen tickets (e.g. "FRIDAY — Jun 20, 2026, 1:00 PM").
+function formatDateTimeWithDay(v) {
+  const t = parseMaybeDate(v);
+  if (!t) return '';
+  const d = new Date(t);
+  const weekday = d.toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase();
+  const rest = d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return `${weekday} — ${rest}`;
 }
 function currency(n) {
   const num = Number(n);

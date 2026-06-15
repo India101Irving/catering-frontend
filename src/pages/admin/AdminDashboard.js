@@ -4,8 +4,9 @@ import Orders from './Orders';
 import PriceConfig from './PriceConfig';
 import HoursConfig from './HoursConfig';
 import PackageConfig from './PackageConfig';
+import WhatsCooking from './WhatsCooking';
 
-const TABS = ['Orders', 'Price Configuration', 'Package Configuration', 'Hours Configuration'];
+const TABS = ['Orders', 'Price Configuration', 'Package Configuration', 'Hours Configuration', "What's Cooking"];
 
 export default function AdminDashboard(props) {
   const { signOut } = props;
@@ -56,6 +57,7 @@ export default function AdminDashboard(props) {
       {activeTab === 'Price Configuration'   && <PriceConfig {...props} />}
       {activeTab === 'Package Configuration' && <PackageConfig {...props} />}
       {activeTab === 'Hours Configuration'   && <HoursConfig />}
+      {activeTab === "What's Cooking"         && <WhatsCooking />}
     </div>
   );
 }

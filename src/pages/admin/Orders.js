@@ -342,35 +342,49 @@ const updatePaymentStatus = async (order, status) => {
       page += 1;
 
       const methodLabel = capitalizeFirst((o.method || o.type || '').toString());
-      const whenLabel = formatDateTimeWithDay(o.when);
-      const rightText = `${methodLabel}${methodLabel && whenLabel ? ' – ' : ''}${whenLabel}`;
+      const { day, rest } = splitDayLabel(o.when);
       const paymentText = `Payment: ${stringifyPaymentForCell(o.payment) || '-'}`;
       const placedAtText = `Placed At: ${formatDateTime(o.placedAt)}`;
+      const pageWidth = doc.internal.pageSize.getWidth();
 
+      // Row 1: order id (left) + method (right, short — never the long date)
       doc.setFontSize(18);
       doc.setFont(undefined, 'bold');
       doc.text(`Order ${o.orderId || ''}`, marginX, 40);
+      if (methodLabel) {
+        doc.setFontSize(13);
+        const mW = doc.getTextWidth(methodLabel);
+        doc.text(methodLabel, pageWidth - marginX - mW, 40);
+      }
 
+      // Row 2: placed-at (left) + payment (right)
       doc.setFontSize(11);
       doc.setFont(undefined, 'normal');
       doc.text(placedAtText, marginX, 58);
-
-      doc.setFontSize(18);
-      doc.setFont(undefined, 'bold');
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const rightWidth = doc.getTextWidth(rightText);
-      const rightX = pageWidth - marginX - rightWidth;
-      doc.text(rightText, Math.max(rightX, marginX), 40);
-
-      doc.setFontSize(11);
-      doc.setFont(undefined, 'normal');
       const payWidth = doc.getTextWidth(paymentText);
-      const payX = pageWidth - marginX - payWidth;
-      doc.text(paymentText, Math.max(payX, marginX), 58);
+      const minPayX = marginX + doc.getTextWidth(placedAtText) + 16;
+      doc.text(paymentText, Math.max(pageWidth - marginX - payWidth, minPayX), 58);
 
       doc.setDrawColor(150);
       doc.setLineWidth(0.5);
       doc.line(marginX, 68, pageWidth - marginX, 68);
+
+      // Prominent day-of-week band: weekday large on its own line, date/time beneath.
+      let headerBottom = 84;
+      if (day || rest) {
+        doc.setTextColor(0);
+        doc.setFontSize(26);
+        doc.setFont(undefined, 'bold');
+        doc.text(day || rest, marginX, 98);
+        let bandBottom = 98;
+        if (day && rest) {
+          doc.setFontSize(13);
+          doc.setFont(undefined, 'normal');
+          doc.text(rest, marginX, 120);
+          bandBottom = 120;
+        }
+        headerBottom = bandBottom + 18;
+      }
 
       const customerRows = [
         ['Name', o.customerName || ''],
@@ -379,7 +393,7 @@ const updatePaymentStatus = async (order, status) => {
         ['Address', formatAddress(o.address)],
       ];
       autoTable(doc, {
-        startY: 84,
+        startY: headerBottom,
         head: [['Customer Details', '']],
         body: customerRows,
         styles: { fontSize: 10, cellPadding: 6, overflow: 'linebreak' },
@@ -735,6 +749,15 @@ function formatDateTimeWithDay(v) {
   const weekday = d.toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase();
   const rest = d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   return `${weekday} — ${rest}`;
+}
+// Splits the kitchen day label into { day, rest } so the PDF can render the
+// weekday large on its own line (day="FRIDAY", rest="Jun 20, 2026, 1:00 PM").
+function splitDayLabel(v) {
+  const label = formatDateTimeWithDay(v);
+  if (!label) return { day: '', rest: '' };
+  const idx = label.indexOf(' — ');
+  if (idx === -1) return { day: label, rest: '' };
+  return { day: label.slice(0, idx), rest: label.slice(idx + 3) };
 }
 function currency(n) {
   const num = Number(n);

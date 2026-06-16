@@ -477,87 +477,80 @@ const updatePaymentStatus = async (order, status) => {
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        {/* Sorters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-sm text-neutral-300">Sort by</label>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm"
-          >
-            <option value="when">Pickup/Delivery Date</option>
-            <option value="placedAt">Order Date</option>
-            <option value="grandTotal">Grand Total</option>
-            <option value="method">Method</option>
-            <option value="paymentMethod">Payment Method</option>
-            <option value="paymentStatus">Payment Status</option>
-            <option value="customerName">Name</option>
-            <option value="orderId">Order Id</option>
-          </select>
-          <button
-            onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-2 rounded border border-neutral-700 bg-neutral-800 text-sm"
-            title="Toggle ascending/descending"
-          >
-            {sortDir === 'asc' ? '↑ Asc' : '↓ Desc'}
-          </button>
-        </div>
+      <div className="ui-card flex flex-wrap items-center gap-2">
+        {/* Sort */}
+        <span className="text-xs font-medium uppercase tracking-wide text-neutral-400 mr-1">Sort</span>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="ui-select w-auto"
+        >
+          <option value="when">Pickup/Delivery Date</option>
+          <option value="placedAt">Order Date</option>
+          <option value="grandTotal">Grand Total</option>
+          <option value="method">Method</option>
+          <option value="paymentMethod">Payment Method</option>
+          <option value="paymentStatus">Payment Status</option>
+          <option value="customerName">Name</option>
+          <option value="orderId">Order Id</option>
+        </select>
+        <button
+          onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+          className="ui-btn-outline ui-btn-sm"
+          title="Toggle ascending/descending"
+        >
+          {sortDir === 'asc' ? '↑ Asc' : '↓ Desc'}
+        </button>
+
+        <span className="mx-1 h-6 w-px bg-[color:var(--line)]" />
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-neutral-300">Filter:</span>
-          <select
-            value={filterMethod}
-            onChange={(e) => setFilterMethod(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm"
-            title="Method"
-          >
-            <option value="all">Method: All</option>
-            <option value="pickup">Pickup</option>
-            <option value="delivery">Delivery</option>
-          </select>
-          <select
-            value={filterPayMethod}
-            onChange={(e) => setFilterPayMethod(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm"
-            title="Payment Method"
-          >
-            <option value="all">Payment: All</option>
-            <option value="card">Card</option>
-            <option value="cash">Cash</option>
-          </select>
+        <span className="text-xs font-medium uppercase tracking-wide text-neutral-400 mr-1">Filter</span>
         <select
-  value={filterPayStatus}
-  onChange={(e) => setFilterPayStatus(e.target.value)}
-  className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm"
-  title="Payment Status"
->
-  <option value="all">Status: All</option>
-  <option value="paid">Paid</option>
-  <option value="pending">Pending</option>
-  <option value="refunded">Refunded</option>
-  <option value="cancelled">Cancelled</option>
-</select>
-          <button
-            onClick={clearFilters}
-            className="px-3 py-2 rounded bg-neutral-700 hover:bg-neutral-600 text-sm"
-          >
-            Clear
-          </button>
+          value={filterMethod}
+          onChange={(e) => setFilterMethod(e.target.value)}
+          className="ui-select w-auto"
+          title="Method"
+        >
+          <option value="all">Method: All</option>
+          <option value="pickup">Pickup</option>
+          <option value="delivery">Delivery</option>
+        </select>
+        <select
+          value={filterPayMethod}
+          onChange={(e) => setFilterPayMethod(e.target.value)}
+          className="ui-select w-auto"
+          title="Payment Method"
+        >
+          <option value="all">Payment: All</option>
+          <option value="card">Card</option>
+          <option value="cash">Cash</option>
+        </select>
+        <select
+          value={filterPayStatus}
+          onChange={(e) => setFilterPayStatus(e.target.value)}
+          className="ui-select w-auto"
+          title="Payment Status"
+        >
+          <option value="all">Status: All</option>
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="refunded">Refunded</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <button onClick={clearFilters} className="ui-btn-ghost ui-btn-sm">
+          Clear
+        </button>
 
-          <button
-            onClick={exportExcel}
-            className="ml-auto px-4 py-2 rounded bg-blue-700 hover:bg-blue-600"
-          >
+        {/* Exports */}
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={exportExcel} className="ui-btn-outline">
             Export Excel
           </button>
           <button
             disabled={!anyChecked}
             onClick={exportSelectedToPDF}
-            className={`px-4 py-2 rounded ${
-              anyChecked ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-neutral-700 text-neutral-400 cursor-not-allowed'
-            }`}
+            className="ui-btn-primary"
           >
             Export PDF for Kitchen
           </button>
@@ -714,15 +707,15 @@ function AnimatedExpand({ open, colSpan, children }) {
 
 /* ===== UI helpers ===== */
 function Th({ children, className = '' }) {
-  return <th className={`px-2 py-2 border-b border-[#3a3636] font-semibold ${className}`}>{children}</th>;
+  return <th className={`px-3 py-2.5 border-b border-[#3a3636] text-left text-xs font-semibold uppercase tracking-wide ${className}`}>{children}</th>;
 }
 function Td({ children, className = '' }) {
-  return <td className={`px-2 align-middle ${className}`}>{children ?? ''}</td>;
+  return <td className={`px-3 align-middle ${className}`}>{children ?? ''}</td>;
 }
 function DetailCard({ title, children }) {
   return (
-    <div className="bg-[#2a2727] border border-[#3a3636] rounded-lg p-3">
-      <div className="text-[#F58735] font-semibold mb-2">{title}</div>
+    <div className="rounded-xl border border-[#3a3636] bg-[#2a2727] p-4">
+      <div className="text-[#F58735] text-xs font-semibold uppercase tracking-wide mb-2">{title}</div>
       <div className="text-neutral-100 text-sm">{children}</div>
     </div>
   );
@@ -918,26 +911,26 @@ function renderPaymentCard(o, paid, onMarkPaid, doUpdateStatus) {
         {!paid && (pm.toLowerCase() === 'cash') && (
           <button
             onClick={(e) => { e.stopPropagation(); onMarkPaid(); }}
-            className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
+            className="px-3 py-1.5 rounded-lg font-medium transition-colors bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
           >
             Mark Paid
           </button>
         )}
         <button
           onClick={(e) => { e.stopPropagation(); doUpdateStatus(o, 'pending'); }}
-          className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white text-sm"
+          className="px-3 py-1.5 rounded-lg font-medium transition-colors bg-amber-600 hover:bg-amber-500 text-white text-sm"
         >
           Pending
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); doUpdateStatus(o, 'refunded'); }}
-          className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
+          className="px-3 py-1.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-500 text-white text-sm"
         >
           Refunded
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); doUpdateStatus(o, 'cancelled'); }}
-          className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-sm"
+          className="px-3 py-1.5 rounded-lg font-medium transition-colors bg-red-600 hover:bg-red-500 text-white text-sm"
         >
           Cancelled
         </button>

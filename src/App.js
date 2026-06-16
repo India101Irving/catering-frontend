@@ -6,6 +6,8 @@ import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
+import RequireAdmin from './components/RequireAdmin';
+import { ENDPOINTS } from './config/endpoints';
 // OLD: import CustomerWizard from './pages/CustomerWizard';
 import IndexChooser   from './pages/index';
 import OrderTrays     from './pages/OrderTrays';
@@ -29,7 +31,7 @@ function AppContent() {
   const location = useLocation();
 
   const fetchData = async () => {
-    const url = 'https://0lab8hw7af.execute-api.us-east-2.amazonaws.com/get-products';
+    const url = ENDPOINTS.getProducts;
     try {
       const response = await fetch(url);
       const data = await response.json();
@@ -96,16 +98,18 @@ function AppContent() {
       <Route
         path="/admin"
         element={
-          <AdminDashboard
-            user={userSession}
-            signOut={handleSignOut}
-            products={products}
-            handleRefresh={fetchData}
-            uploading={uploading}
-            handleFileUpload={handleFileUpload}
-            message={message}
-            setMessage={setMessage}
-          />
+          <RequireAdmin>
+            <AdminDashboard
+              user={userSession}
+              signOut={handleSignOut}
+              products={products}
+              handleRefresh={fetchData}
+              uploading={uploading}
+              handleFileUpload={handleFileUpload}
+              message={message}
+              setMessage={setMessage}
+            />
+          </RequireAdmin>
         }
       />
     </Routes>

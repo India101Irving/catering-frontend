@@ -174,7 +174,7 @@ export default function AdminPackageConfig() {
       </section>
 
       {cfg.packages.map((p, idx) => (
-        <section key={p.id} className="mb-6 rounded border border-[#3a3939] p-4 bg-[#222222]">
+        <section key={p.id} className="mb-6 rounded border border-[#3a3939] p-4 bg-[#1d1c1c]">
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-lg font-semibold text-[#F58735]">{p.name}</div>

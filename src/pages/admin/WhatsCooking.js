@@ -2,9 +2,10 @@
 // Uploads a flyer, has the portal's AI read it and draft a post, then publishes.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { ENDPOINTS } from '../../config/endpoints';
 
-// India 101 portal API. Switch to https://india101.com after the DNS cutover.
-const PORTAL_API = 'https://main.d2vl6i6rbo3rbt.amplifyapp.com';
+// India 101 portal API (see config/endpoints.js; switch to india101.com at DNS cutover).
+const PORTAL_API = ENDPOINTS.portalApi;
 
 async function authHeaders() {
   const session = await fetchAuthSession();
@@ -119,12 +120,12 @@ export default function WhatsCooking() {
     loadPosts();
   }
 
-  const input = 'w-full rounded bg-[#2C2525] border border-[#3A2D2D] px-3 py-2 text-sm text-white placeholder:text-neutral-500';
+  const input = 'w-full rounded bg-[#1d1c1c] border border-[#3a3636] px-3 py-2 text-sm text-white placeholder:text-neutral-500';
 
   return (
     <div className="space-y-5 max-w-3xl">
       {/* Uploader */}
-      <div className="bg-[#2E2424] border border-[#3A2D2D] rounded-lg p-4">
+      <div className="bg-[#2a2727] border border-[#3a3636] rounded-lg p-4">
         <h2 className="text-lg font-semibold text-[#F58735]">Post an update</h2>
         <p className="text-sm text-neutral-400 mt-1">
           Upload a flyer — the assistant reads it and drafts the post for you. Review, edit if needed, then publish to the website.
@@ -151,7 +152,7 @@ export default function WhatsCooking() {
 
       {/* Draft editor */}
       {draft && (
-        <div className="bg-[#2E2424] border border-[#3A2D2D] rounded-lg p-4">
+        <div className="bg-[#2a2727] border border-[#3a3636] rounded-lg p-4">
           <h3 className="font-semibold text-white mb-3">Review draft</h3>
           <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
             <img src={draft.imageUrl} alt="flyer" className="h-40 w-full rounded object-cover" />
@@ -165,7 +166,7 @@ export default function WhatsCooking() {
             <button onClick={() => publish(true)} disabled={busy} className="rounded bg-[#F58735] hover:bg-orange-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
               Publish + feature on home banner
             </button>
-            <button onClick={() => publish(false)} disabled={busy} className="rounded border border-[#3A2D2D] px-4 py-2 text-sm text-neutral-200 hover:border-[#F58735]">
+            <button onClick={() => publish(false)} disabled={busy} className="rounded border border-[#3a3636] px-4 py-2 text-sm text-neutral-200 hover:border-[#F58735]">
               Publish only
             </button>
             <button onClick={() => { setDraft(null); setStatus(''); }} disabled={busy} className="rounded px-4 py-2 text-sm text-neutral-400">
@@ -180,7 +181,7 @@ export default function WhatsCooking() {
         <h3 className="text-white font-semibold mb-2">Posts ({posts.length})</h3>
         <div className="space-y-2">
           {posts.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 bg-[#2E2424] border border-[#3A2D2D] rounded-lg p-3">
+            <div key={p.id} className="flex items-center gap-3 bg-[#2a2727] border border-[#3a3636] rounded-lg p-3">
               {p.imageUrl && <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">
@@ -190,13 +191,13 @@ export default function WhatsCooking() {
                 </p>
                 <p className="truncate text-xs text-neutral-500">{p.eventDate || new Date(p.createdAt).toLocaleDateString()}</p>
               </div>
-              <button onClick={() => patch(p.id, { featured: !p.featured })} className="rounded border border-[#3A2D2D] px-2.5 py-1 text-xs text-neutral-200 hover:border-[#F58735]">
+              <button onClick={() => patch(p.id, { featured: !p.featured })} className="rounded border border-[#3a3636] px-2.5 py-1 text-xs text-neutral-200 hover:border-[#F58735]">
                 {p.featured ? 'Unfeature' : 'Feature'}
               </button>
-              <button onClick={() => patch(p.id, { published: !p.published })} className="rounded border border-[#3A2D2D] px-2.5 py-1 text-xs text-neutral-200 hover:border-[#F58735]">
+              <button onClick={() => patch(p.id, { published: !p.published })} className="rounded border border-[#3a3636] px-2.5 py-1 text-xs text-neutral-200 hover:border-[#F58735]">
                 {p.published ? 'Unpublish' : 'Publish'}
               </button>
-              <button onClick={() => remove(p.id)} className="rounded border border-[#3A2D2D] px-2.5 py-1 text-xs text-red-300 hover:border-red-500">
+              <button onClick={() => remove(p.id)} className="rounded border border-[#3a3636] px-2.5 py-1 text-xs text-red-300 hover:border-red-500">
                 Delete
               </button>
             </div>

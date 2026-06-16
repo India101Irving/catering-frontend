@@ -1,3 +1,97 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * India 101 admin console — brand design tokens.
+ * Mirrors the public portal palette (orange on warm charcoal) so the staff
+ * console and the customer-facing site read as one brand. Tailwind classes
+ * (bg-charcoal, text-brand, .ui-* components) resolve to these variables.
+ */
+:root {
+  --brand: #f58735;
+  --brand-deep: #e4792d;
+  --charcoal: #232222;
+  --charcoal-2: #2c2a2a;
+  --charcoal-3: #3a3939;
+  --cream: #faf7f2;
+
+  /* semantic surfaces */
+  --page: #1d1c1c;       /* app background */
+  --surface: #2a2727;    /* cards / panels */
+  --surface-2: #333030;  /* nested / hover */
+  --line: #3a3636;       /* borders / dividers */
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--page);
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Reusable component layer ---------- */
+@layer components {
+  /* Buttons */
+  .ui-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2
+           text-sm font-medium transition-colors disabled:opacity-50
+           disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2
+           focus-visible:ring-[#f58735];
+  }
+  .ui-btn-primary { @apply ui-btn bg-brand text-charcoal hover:bg-brand-deep; }
+  .ui-btn-ghost   { @apply ui-btn bg-transparent text-neutral-300 hover:bg-[color:var(--surface-2)] hover:text-white; }
+  .ui-btn-outline { @apply ui-btn border border-[color:var(--line)] text-neutral-200 hover:bg-[color:var(--surface-2)] hover:text-white; }
+  .ui-btn-danger  { @apply ui-btn bg-red-600/90 text-white hover:bg-red-600; }
+  .ui-btn-sm      { @apply px-3 py-1.5 text-xs; }
+
+  /* Cards / panels */
+  .ui-card {
+    @apply rounded-xl2 border border-[color:var(--line)] bg-[color:var(--surface)] p-5 shadow-sm;
+  }
+  .ui-card-inset {
+    @apply rounded-lg border border-[color:var(--line)] bg-[color:var(--surface-2)] p-4;
+  }
+
+  /* Form controls */
+  .ui-label { @apply block text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5; }
+  .ui-input {
+    @apply w-full rounded-lg border border-[color:var(--line)] bg-[color:var(--page)]
+           px-3 py-2 text-sm text-white placeholder-neutral-500
+           focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand;
+  }
+  .ui-select { @apply ui-input appearance-none pr-8; }
+
+  /* Badges */
+  .ui-badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium; }
+  .ui-badge-green  { @apply ui-badge bg-emerald-500/15 text-emerald-300; }
+  .ui-badge-amber  { @apply ui-badge bg-amber-500/15 text-amber-300; }
+  .ui-badge-red    { @apply ui-badge bg-red-500/15 text-red-300; }
+  .ui-badge-brand  { @apply ui-badge bg-[#f58735]/15 text-brand; }
+  .ui-badge-muted  { @apply ui-badge bg-white/10 text-neutral-300; }
+
+  /* Tables */
+  .ui-th { @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-400; }
+  .ui-td { @apply px-3 py-2.5 text-sm text-neutral-200 align-top; }
+
+  /* Tabs */
+  .ui-tab {
+    @apply shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium
+           text-neutral-400 transition-colors hover:text-white;
+  }
+  .ui-tab-active { @apply bg-[color:var(--surface)] text-white shadow-sm ring-1 ring-[color:var(--line)]; }
+}
+
+/* ---------- Utilities ---------- */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.fade-in { animation: fadeIn 0.4s ease forwards; }
+.fade-up { animation: fadeUp 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in, .fade-up { animation: none !important; opacity: 1 !important; transform: none !important; }
+}

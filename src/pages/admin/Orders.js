@@ -551,11 +551,11 @@ const updatePaymentStatus = async (order, status) => {
       </div>
 
       {/* Table */}
-      <div className="overflow-auto border border-[#3A2D2D] rounded-lg">
+      <div className="overflow-auto border border-[#3a3636] rounded-lg">
         <table className="w-full min-w-[1250px] text-left">
-          <thead className="bg-[#2E2424] text-[#F58735] sticky top-0 z-10">
+          <thead className="bg-[#2a2727] text-[#F58735] sticky top-0 z-10">
             <tr className="text-sm">
-              <th className="p-2 border-b border-[#3A2D2D]">
+              <th className="p-2 border-b border-[#3a3636]">
                 <input type="checkbox" className="h-4 w-4" checked={!!allChecked} onChange={toggleAll} />
               </th>
               <Th>Placed At</Th>
@@ -589,7 +589,7 @@ const updatePaymentStatus = async (order, status) => {
               return (
                 <React.Fragment key={o.orderId}>
                   <tr
-                    className={`border-b border-[#3A2D2D] cursor-pointer ${isOpen ? 'bg-[#2C2626]' : 'odd:bg-[#2E2424] even:bg-[#2C2424]'} hover:bg-[#3a2f2f]`}
+                    className={`border-b border-[#3a3636] cursor-pointer ${isOpen ? 'bg-[#2a2727]' : 'odd:bg-[#2a2727] even:bg-[#2a2727]'} hover:bg-[#333030]`}
                     onClick={(e) => {
                       const tag = e.target?.tagName?.toLowerCase();
                       if (tag === 'input' || tag === 'button' || tag === 'a') return;
@@ -684,7 +684,7 @@ function AnimatedExpand({ open, colSpan, children }) {
   }, [open, children]);
 
   return (
-    <tr className="bg-[#221A1A]">
+    <tr className="bg-[#1d1c1c]">
       <td colSpan={colSpan} className="px-4 py-0">
         <div
           ref={ref}
@@ -700,14 +700,14 @@ function AnimatedExpand({ open, colSpan, children }) {
 
 /* ===== UI helpers ===== */
 function Th({ children, className = '' }) {
-  return <th className={`px-2 py-2 border-b border-[#3A2D2D] font-semibold ${className}`}>{children}</th>;
+  return <th className={`px-2 py-2 border-b border-[#3a3636] font-semibold ${className}`}>{children}</th>;
 }
 function Td({ children, className = '' }) {
   return <td className={`px-2 align-middle ${className}`}>{children ?? ''}</td>;
 }
 function DetailCard({ title, children }) {
   return (
-    <div className="bg-[#2E2424] border border-[#3A2D2D] rounded-lg p-3">
+    <div className="bg-[#2a2727] border border-[#3a3636] rounded-lg p-3">
       <div className="text-[#F58735] font-semibold mb-2">{title}</div>
       <div className="text-neutral-100 text-sm">{children}</div>
     </div>
@@ -966,7 +966,7 @@ function renderAccounting(o) {
       <Row label="Discount" value={currency(o.discount)} />
       <Row label="Subtotal" value={currency(o.subtotal)} />
       <Row label={`Tax${salesTaxPct}`} value={currency(o.tax)} />
-      <div className="border-t border-[#3A2D2D] pt-2 flex items-center justify-between">
+      <div className="border-t border-[#3a3636] pt-2 flex items-center justify-between">
         <div className="text-sm">Grand Total</div>
         <div className="text-base font-semibold">{currency(o.grandTotal)}</div>
       </div>
@@ -1000,7 +1000,7 @@ function renderLines(lines) {
   return (
     <div className="space-y-3">
       {norm.map((ln, idx) => (
-        <div key={idx} className="border border-[#3A2D2D] rounded-md p-2">
+        <div key={idx} className="border border-[#3a3636] rounded-md p-2">
           <div className="text-base font-semibold">
             {ln.itemName || 'Item'}
             {ln.spiceLevel ? (
@@ -1018,7 +1018,7 @@ function renderLines(lines) {
           )}
 
           {!!ln.children?.length && (
-            <div className="mt-2 pl-3 border-l border-[#3A2D2D] space-y-1">
+            <div className="mt-2 pl-3 border-l border-[#3a3636] space-y-1">
               {ln.children.map((c, ci) => (
                 <div key={ci} className="text-sm">
                   • <span className="font-medium">{c.itemName}</span>

@@ -279,7 +279,7 @@ export default function Configuration({
       {/* Upload */}
       <div className="mb-6">
         <label className="block mb-2 text-sm font-medium text-white">Upload new <code>PriceSet.csv</code></label>
-        <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileChange} className="block text-white bg-[#2E2424] border border-[#F58735] rounded px-2 py-1"/>
+        <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileChange} className="block text-white bg-[#2a2727] border border-[#F58735] rounded px-2 py-1"/>
         {uploading && <p className="text-sm text-orange-300 mt-2">Uploading…</p>}
         {message && <p className="text-sm text-[#F58735] mt-2">{message}</p>}
       </div>
@@ -296,11 +296,11 @@ export default function Configuration({
             return (a[sortBy]||'').localeCompare(b[sortBy]||'');
           });
           return(
-            <div key={category} className="bg-[#2E2424] rounded-lg shadow p-4">
+            <div key={category} className="bg-[#2a2727] rounded-lg shadow p-4">
               <h2 className="text-lg font-semibold text-[#F58735] mb-2">{category}</h2>
               <div className="max-h-[600px] overflow-y-auto">
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-[#2E2424] text-[#F58735] sticky top-0 z-10">
+                  <thead className="bg-[#2a2727] text-[#F58735] sticky top-0 z-10">
                     <tr>
                       <th className="p-2">Item</th>
                       <th className="p-2">Group</th>
@@ -321,7 +321,7 @@ export default function Configuration({
                       const saleBase=cost*(1+margin/100);
                       const type=(item.Type||'').toLowerCase();
                       return(
-                        <tr key={item.ItemName} className="border-b border-[#3A2D2D]">
+                        <tr key={item.ItemName} className="border-b border-[#3a3636]">
                           <td className="p-2">{item.ItemName}</td>
                           <td className="p-2">{item.Group}</td>
                           <td className="p-2 lowercase">{item.Type}</td>
@@ -350,7 +350,7 @@ export default function Configuration({
       {/* Config Modal */}
       {showConfig && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-[#2E2424] p-8 rounded-lg w-full max-w-lg shadow-xl">
+          <div className="bg-[#2a2727] p-8 rounded-lg w-full max-w-lg shadow-xl">
             <h3 className="text-xl font-semibold text-[#F58735] mb-6 text-center">
               Price Configuration
             </h3>

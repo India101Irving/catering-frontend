@@ -119,7 +119,7 @@ export default function Hours() {
   }
 
   return (
-    <div className="min-h-screen bg-[#2C2525] text-white p-6">
+    <div className="min-h-screen bg-[#1d1c1c] text-white p-6">
       <h1 className="text-2xl font-bold text-[#F58735] mb-6">Pickup & Delivery Hours</h1>
 
       {loading ? (
@@ -184,7 +184,7 @@ export default function Hours() {
 /* ---------------- Components ---------------- */
 function SectionCard({ title, className = '', children }) {
   return (
-    <div className={`bg-[#2E2424] border border-[#3A2D2D] rounded-lg p-4 ${className}`}>
+    <div className={`bg-[#2a2727] border border-[#3a3636] rounded-lg p-4 ${className}`}>
       <div className="text-[#F58735] font-semibold mb-3">{title}</div>
       {children}
     </div>
@@ -211,14 +211,14 @@ function HoursTable2({ hours, onChange }) {
             const row = hours[dow] || defaultDay('10:00', '15:00', '17:00', '21:00', false);
             const { open1, close1, open2, close2, closed } = row;
             return (
-              <tr key={dow} className="border-t border-[#3A2D2D]">
+              <tr key={dow} className="border-t border-[#3a3636]">
                 <td className="p-2">{dow}</td>
                 <td className="p-2">
                   <input
                     type="time"
                     value={open1 || ''}
                     onChange={(e) => onChange(dow, 'open1', e.target.value)}
-                    className="bg-[#2C2525] border border-[#3A2D2D] rounded px-2 py-1"
+                    className="bg-[#1d1c1c] border border-[#3a3636] rounded px-2 py-1"
                     disabled={closed}
                   />
                 </td>
@@ -227,7 +227,7 @@ function HoursTable2({ hours, onChange }) {
                     type="time"
                     value={close1 || ''}
                     onChange={(e) => onChange(dow, 'close1', e.target.value)}
-                    className="bg-[#2C2525] border border-[#3A2D2D] rounded px-2 py-1"
+                    className="bg-[#1d1c1c] border border-[#3a3636] rounded px-2 py-1"
                     disabled={closed}
                   />
                 </td>
@@ -236,7 +236,7 @@ function HoursTable2({ hours, onChange }) {
                     type="time"
                     value={open2 || ''}
                     onChange={(e) => onChange(dow, 'open2', e.target.value)}
-                    className="bg-[#2C2525] border border-[#3A2D2D] rounded px-2 py-1"
+                    className="bg-[#1d1c1c] border border-[#3a3636] rounded px-2 py-1"
                     disabled={closed}
                   />
                 </td>
@@ -245,7 +245,7 @@ function HoursTable2({ hours, onChange }) {
                     type="time"
                     value={close2 || ''}
                     onChange={(e) => onChange(dow, 'close2', e.target.value)}
-                    className="bg-[#2C2525] border border-[#3A2D2D] rounded px-2 py-1"
+                    className="bg-[#1d1c1c] border border-[#3a3636] rounded px-2 py-1"
                     disabled={closed}
                   />
                 </td>
@@ -294,13 +294,13 @@ function CopyRowToButton({ fromDow, onClone }) {
         Copy…
       </button>
       {open && (
-        <div className="absolute z-10 mt-1 bg-[#2C2525] border border-[#3A2D2D] rounded shadow p-2">
+        <div className="absolute z-10 mt-1 bg-[#1d1c1c] border border-[#3a3636] rounded shadow p-2">
           <div className="text-xs text-neutral-300 mb-1">Copy {fromDow} to:</div>
           <div className="grid grid-cols-4 gap-1 max-w-[220px]">
             {DAYS.filter((d) => d !== fromDow).map((d) => (
               <button
                 key={d}
-                className="bg-[#2E2424] hover:bg-[#3a2a2a] px-2 py-1 rounded text-xs"
+                className="bg-[#2a2727] hover:bg-[#3a3636] px-2 py-1 rounded text-xs"
                 onClick={() => { onClone(d); setOpen(false); }}
               >
                 {d}

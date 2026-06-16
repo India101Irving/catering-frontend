@@ -120,13 +120,11 @@ export default function WhatsCooking() {
     loadPosts();
   }
 
-  const input = 'w-full rounded bg-[#1d1c1c] border border-[#3a3636] px-3 py-2 text-sm text-white placeholder:text-neutral-500';
-
   return (
     <div className="space-y-5 max-w-3xl">
       {/* Uploader */}
-      <div className="bg-[#2a2727] border border-[#3a3636] rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-[#F58735]">Post an update</h2>
+      <div className="ui-card">
+        <h2 className="text-lg font-semibold text-brand">Post an update</h2>
         <p className="text-sm text-neutral-400 mt-1">
           Upload a flyer — the assistant reads it and drafts the post for you. Review, edit if needed, then publish to the website.
         </p>
@@ -135,7 +133,7 @@ export default function WhatsCooking() {
           onChange={(e) => setHint(e.target.value)}
           rows={2}
           placeholder="Optional note for the assistant (e.g. 'Diwali dinner — reservations recommended')"
-          className={`${input} mt-3`}
+          className="ui-input mt-3"
         />
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <input
@@ -144,7 +142,7 @@ export default function WhatsCooking() {
             accept="image/*"
             onChange={onFile}
             disabled={busy}
-            className="block text-sm text-neutral-300 file:mr-3 file:rounded file:border-0 file:bg-[#F58735] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
+            className="block text-sm text-neutral-300 file:mr-3 file:rounded-lg file:border file:border-[color:var(--line)] file:bg-transparent file:px-4 file:py-2 file:text-sm file:font-medium file:text-neutral-200 hover:file:bg-[color:var(--surface-2)] hover:file:text-white file:transition-colors"
           />
           {status && <span className="text-sm text-neutral-400">{status}</span>}
         </div>
@@ -152,24 +150,24 @@ export default function WhatsCooking() {
 
       {/* Draft editor */}
       {draft && (
-        <div className="bg-[#2a2727] border border-[#3a3636] rounded-lg p-4">
+        <div className="ui-card">
           <h3 className="font-semibold text-white mb-3">Review draft</h3>
           <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
-            <img src={draft.imageUrl} alt="flyer" className="h-40 w-full rounded object-cover" />
+            <img src={draft.imageUrl} alt="flyer" className="h-40 w-full rounded-lg object-cover" />
             <div className="space-y-2">
-              <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Title" className={`${input} font-medium`} />
-              <input value={draft.eventDate} onChange={(e) => setDraft({ ...draft, eventDate: e.target.value })} placeholder="Date / time (optional)" className={input} />
-              <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={4} placeholder="Description" className={input} />
+              <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Title" className="ui-input font-medium" />
+              <input value={draft.eventDate} onChange={(e) => setDraft({ ...draft, eventDate: e.target.value })} placeholder="Date / time (optional)" className="ui-input" />
+              <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={4} placeholder="Description" className="ui-input" />
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={() => publish(true)} disabled={busy} className="rounded bg-[#F58735] hover:bg-orange-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+            <button onClick={() => publish(true)} disabled={busy} className="ui-btn-primary">
               Publish + feature on home banner
             </button>
-            <button onClick={() => publish(false)} disabled={busy} className="rounded border border-[#3a3636] px-4 py-2 text-sm text-neutral-200 hover:border-[#F58735]">
+            <button onClick={() => publish(false)} disabled={busy} className="ui-btn-outline">
               Publish only
             </button>
-            <button onClick={() => { setDraft(null); setStatus(''); }} disabled={busy} className="rounded px-4 py-2 text-sm text-neutral-400">
+            <button onClick={() => { setDraft(null); setStatus(''); }} disabled={busy} className="ui-btn-ghost">
               Discard
             </button>
           </div>
@@ -181,23 +179,23 @@ export default function WhatsCooking() {
         <h3 className="text-white font-semibold mb-2">Posts ({posts.length})</h3>
         <div className="space-y-2">
           {posts.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 bg-[#2a2727] border border-[#3a3636] rounded-lg p-3">
-              {p.imageUrl && <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />}
+            <div key={p.id} className="ui-card flex items-center gap-3 p-3">
+              {p.imageUrl && <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">
+                <p className="truncate text-sm font-medium text-white flex items-center gap-1.5">
                   {p.title}
-                  {p.featured && <span className="ml-1.5 rounded bg-[#F58735]/20 px-1.5 py-0.5 text-[10px] text-[#F58735]">BANNER</span>}
-                  {!p.published && <span className="ml-1.5 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-neutral-400">DRAFT</span>}
+                  {p.featured && <span className="ui-badge-brand">BANNER</span>}
+                  {!p.published && <span className="ui-badge-muted">DRAFT</span>}
                 </p>
                 <p className="truncate text-xs text-neutral-500">{p.eventDate || new Date(p.createdAt).toLocaleDateString()}</p>
               </div>
-              <button onClick={() => patch(p.id, { featured: !p.featured })} className="rounded border border-[#3a3636] px-2.5 py-1 text-xs text-neutral-200 hover:border-[#F58735]">
+              <button onClick={() => patch(p.id, { featured: !p.featured })} className="ui-btn-outline ui-btn-sm">
                 {p.featured ? 'Unfeature' : 'Feature'}
               </button>
-              <button onClick={() => patch(p.id, { published: !p.published })} className="rounded border border-[#3a3636] px-2.5 py-1 text-xs text-neutral-200 hover:border-[#F58735]">
+              <button onClick={() => patch(p.id, { published: !p.published })} className="ui-btn-outline ui-btn-sm">
                 {p.published ? 'Unpublish' : 'Publish'}
               </button>
-              <button onClick={() => remove(p.id)} className="rounded border border-[#3a3636] px-2.5 py-1 text-xs text-red-300 hover:border-red-500">
+              <button onClick={() => remove(p.id)} className="ui-btn-danger ui-btn-sm">
                 Delete
               </button>
             </div>

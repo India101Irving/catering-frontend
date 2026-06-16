@@ -256,30 +256,30 @@ export default function Configuration({
   return (
     <>
       {/* Action bar */}
-      <div className="flex items-center gap-6 flex-wrap mb-6">
-        <button onClick={handleRefresh} className="bg-[#F58735] hover:bg-orange-600 text-white px-4 py-2 rounded text-sm">🔄 Refresh</button>
+      <div className="ui-card flex items-center gap-6 flex-wrap mb-6">
+        <button onClick={handleRefresh} className="ui-btn-primary">🔄 Refresh</button>
         <label className="text-sm font-medium">Margin %:
-          <input type="number" value={margin} onChange={e=>setMargin(parseFloat(e.target.value)||0)} className="ml-2 w-24 px-2 py-1 rounded text-black"/>
+          <input type="number" value={margin} onChange={e=>setMargin(parseFloat(e.target.value)||0)} className="ui-input w-24 ml-2 inline-block"/>
         </label>
         <label className="text-sm font-medium">Sort by:
-          <select value={sortBy} onChange={e=>setSortBy(e.target.value)} className="ml-2 px-2 py-1 text-black rounded">
+          <select value={sortBy} onChange={e=>setSortBy(e.target.value)} className="ui-select w-auto ml-2 inline-block">
             <option value="ItemName">Item Name</option>
             <option value="Group">Group</option>
             <option value="Type">Type</option>
             <option value="SalePrice">Sale Price</option>
           </select>
         </label>
-        <button onClick={()=>setShowConfig(true)} className="bg-[#F58735] hover:bg-orange-600 text-white px-4 py-2 rounded text-sm">⚙️ Config</button>
+        <button onClick={()=>setShowConfig(true)} className="ui-btn-primary">⚙️ Config</button>
         <div className="flex gap-2 ml-auto">
-          <button onClick={handleExportExcel} className="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded text-sm">📤 Export</button>
-          <button onClick={handleDeployPricing} className="bg-red-700 hover:bg-red-800 text-white font-bold px-4 py-2 rounded text-sm">🚀 Deploy Pricing</button>
+          <button onClick={handleExportExcel} className="ui-btn-outline">📤 Export</button>
+          <button onClick={handleDeployPricing} className="ui-btn-primary font-bold">🚀 Deploy Pricing</button>
         </div>
       </div>
 
       {/* Upload */}
-      <div className="mb-6">
-        <label className="block mb-2 text-sm font-medium text-white">Upload new <code>PriceSet.csv</code></label>
-        <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileChange} className="block text-white bg-[#2a2727] border border-[#F58735] rounded px-2 py-1"/>
+      <div className="ui-card mb-6">
+        <label className="ui-label">Upload new <code>PriceSet.csv</code></label>
+        <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileChange} className="ui-input w-auto block"/>
         {uploading && <p className="text-sm text-orange-300 mt-2">Uploading…</p>}
         {message && <p className="text-sm text-[#F58735] mt-2">{message}</p>}
       </div>
@@ -296,8 +296,8 @@ export default function Configuration({
             return (a[sortBy]||'').localeCompare(b[sortBy]||'');
           });
           return(
-            <div key={category} className="bg-[#2a2727] rounded-lg shadow p-4">
-              <h2 className="text-lg font-semibold text-[#F58735] mb-2">{category}</h2>
+            <div key={category} className="ui-card">
+              <h2 className="text-brand text-xs font-semibold uppercase tracking-wide mb-2">{category}</h2>
               <div className="max-h-[600px] overflow-y-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-[#2a2727] text-[#F58735] sticky top-0 z-10">
@@ -350,7 +350,7 @@ export default function Configuration({
       {/* Config Modal */}
       {showConfig && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-[#2a2727] p-8 rounded-lg w-full max-w-lg shadow-xl">
+          <div className="ui-card w-full max-w-lg">
             <h3 className="text-xl font-semibold text-[#F58735] mb-6 text-center">
               Price Configuration
             </h3>
@@ -365,7 +365,7 @@ export default function Configuration({
                 step="0.01"
                 value={minPcPrice}
                 onChange={(e) => setMinPcPrice(parseFloat(e.target.value) || 0)}
-                className="flex-1 px-3 py-1 rounded text-black"
+                className="ui-input flex-1"
               />
             </div>
 
@@ -381,7 +381,7 @@ export default function Configuration({
                       type="number"
                       value={tray.oz}
                       onChange={(e) => updateTray(idx, 'oz', e.target.value)}
-                      className="w-full px-2 py-1 rounded text-black"
+                      className="ui-input"
                     />
                   </div>
 
@@ -392,7 +392,7 @@ export default function Configuration({
                       step="0.01"
                       value={tray.min}
                       onChange={(e) => updateTray(idx, 'min', e.target.value)}
-                      className="w-full px-2 py-1 rounded text-black"
+                      className="ui-input"
                     />
                   </div>
 
@@ -403,7 +403,7 @@ export default function Configuration({
                       step="0.01"
                       value={tray.max}
                       onChange={(e) => updateTray(idx, 'max', e.target.value)}
-                      className="w-full px-2 py-1 rounded text-black"
+                      className="ui-input"
                     />
                   </div>
                 </div>
@@ -414,7 +414,7 @@ export default function Configuration({
             <div className="flex justify-end mt-10">
               <button
                 onClick={() => setShowConfig(false)}
-                className="bg-[#F58735] hover:bg-orange-600 text-white px-6 py-2 rounded text-sm"
+                className="ui-btn-ghost"
               >
                 Close
               </button>

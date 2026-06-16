@@ -141,31 +141,31 @@ export default function AdminPackageConfig() {
     }
   };
 
-  if (loading) return <div className="p-4 text-sm text-gray-300">Loading config…</div>;
+  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading config…</div>;
 
   return (
-    <div className="p-4 max-w-5xl text-white">
-      <h1 className="text-2xl font-semibold text-[#F58735] mb-4">Package & Tray Configuration</h1>
+    <div className="max-w-5xl space-y-6 text-white">
+      <h1 className="text-2xl font-semibold text-brand">Package & Tray Configuration</h1>
 
-      <section className="mb-6 rounded border border-[#3a3939] p-4 bg-[#232222]">
-        <h2 className="text-lg font-semibold mb-2">Tray thresholds</h2>
+      <section className="ui-card">
+        <h2 className="text-brand text-xs font-semibold uppercase tracking-wide mb-3">Tray thresholds</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {['small','medium','large','xl'].map(k => (
-            <label key={k} className="text-sm">
-              <div className="text-gray-300 capitalize">{k} max guests</div>
+            <label key={k}>
+              <div className="ui-label capitalize">{k} max guests</div>
               <input
                 type="number"
-                className="mt-1 w-full rounded bg-[#2c2a2a] border border-[#3a3939] px-3 py-2"
+                className="ui-input"
                 value={cfg.trays.thresholds[k]}
                 onChange={e => updateThreshold(k, e.target.value)}
               />
             </label>
           ))}
-          <label className="text-sm">
-            <div className="text-gray-300">Heavy appetite +guests</div>
+          <label>
+            <div className="ui-label">Heavy appetite +guests</div>
             <input
               type="number"
-              className="mt-1 w-full rounded bg-[#2c2a2a] border border-[#3a3939] px-3 py-2"
+              className="ui-input"
               value={cfg.trays.heavyBump}
               onChange={e => updateHeavyBump(e.target.value)}
             />
@@ -174,30 +174,30 @@ export default function AdminPackageConfig() {
       </section>
 
       {cfg.packages.map((p, idx) => (
-        <section key={p.id} className="mb-6 rounded border border-[#3a3939] p-4 bg-[#1d1c1c]">
+        <section key={p.id} className="ui-card">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-lg font-semibold text-[#F58735]">{p.name}</div>
-              <div className="text-xs text-gray-400">{p.priceLine}</div>
+              <div className="text-lg font-semibold text-brand">{p.name}</div>
+              <div className="text-xs text-neutral-400">{p.priceLine}</div>
             </div>
           </div>
 
           {['appetizer','main','rice','bread','dessert'].map(course => (
             <div key={course} className="mb-3">
-              <div className="text-sm font-medium capitalize mb-2">{course}</div>
+              <div className="text-brand text-xs font-semibold uppercase tracking-wide mb-2">{course}</div>
               <div className="flex flex-wrap gap-2">
                 {p.slots[course].map((g, sidx) => (
                   <div key={sidx} className="flex items-center gap-2">
                     <select
                       value={g}
                       onChange={e => updateSlot(idx, course, sidx, e.target.value)}
-                      className="bg-[#2c2a2a] border border-[#3a3939] rounded px-2 py-1"
+                      className="ui-select w-auto"
                     >
                       {['A','B','C','D'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                     <button
                       onClick={() => removeSlot(idx, course, sidx)}
-                      className="text-xs text-red-400 hover:text-red-200"
+                      className="ui-btn-danger ui-btn-sm"
                     >
                       remove
                     </button>
@@ -205,7 +205,7 @@ export default function AdminPackageConfig() {
                 ))}
                 <button
                   onClick={() => addSlot(idx, course)}
-                  className="text-xs bg-[#2c2a2a] hover:bg-[#3a3939] border border-[#3a3939] rounded px-2 py-1"
+                  className="ui-btn-outline ui-btn-sm"
                 >
                   + add slot
                 </button>
@@ -219,11 +219,11 @@ export default function AdminPackageConfig() {
         <button
           onClick={save}
           disabled={saving}
-          className="bg-[#F58735] hover:bg-orange-600 px-4 py-2 rounded disabled:opacity-60"
+          className="ui-btn-primary"
         >
           {saving ? 'Saving…' : 'Save configuration'}
         </button>
-        {msg && <span className="text-sm text-gray-300">{msg}</span>}
+        {msg && <span className="text-sm text-neutral-400">{msg}</span>}
       </div>
     </div>
   );

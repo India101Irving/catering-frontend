@@ -28,7 +28,7 @@ export default function AdminDashboard(props) {
       {/* Top bar */}
       <header className="sticky top-0 z-20 border-b border-[color:var(--line)] bg-[color:var(--page)]/95 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--page)]/80">
         <div className="mx-auto max-w-[1400px] px-4 md:px-6 h-16 flex items-center justify-between gap-4">
-          <Wordmark sub="Staff Console" />
+          <Wordmark sub="Catering" />
           <button onClick={() => signOut?.()} className="ui-btn-outline ui-btn-sm">
             Sign out
           </button>

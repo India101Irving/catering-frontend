@@ -335,106 +335,121 @@ const updatePaymentStatus = async (order, status) => {
 
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
     const marginX = 40;
-    let page = 0;
+    const marginTop = 40;
+    const marginBottom = 40;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const usable = pageHeight - marginTop - marginBottom;
 
-    pick.forEach((o) => {
-      if (page > 0) doc.addPage();
-      page += 1;
+    /*
+     * Draws ONE order onto doc `d` at vertical scale `s` (font sizes, paddings
+     * and header offsets all scale by s). Returns the bottom Y of the content.
+     * Every order is forced onto a single page: we first measure the natural
+     * height on a tall scratch page (no auto-pagination), then pick s so it
+     * fits within one letter page. Items render in 2 compact columns so big
+     * menus stay large before any shrink kicks in.
+     */
+    const drawOrder = (d, o, s) => {
+      const pw = d.internal.pageSize.getWidth();
+      const Y = (base) => marginTop + (base - marginTop) * s; // compress offsets below the top margin
+      const gap = 18 * s;
 
       const methodLabel = capitalizeFirst((o.method || o.type || '').toString());
       const { day, rest } = splitDayLabel(o.when);
       const paymentText = `Payment: ${stringifyPaymentForCell(o.payment) || '-'}`;
       const placedAtText = `Placed At: ${formatDateTime(o.placedAt)}`;
-      const pageWidth = doc.internal.pageSize.getWidth();
 
       // Row 1: order id (left) + method (right, short — never the long date)
-      doc.setFontSize(18);
-      doc.setFont(undefined, 'bold');
-      doc.text(`Order ${o.orderId || ''}`, marginX, 40);
+      d.setTextColor(0);
+      d.setFont(undefined, 'bold');
+      d.setFontSize(18 * s);
+      d.text(`Order ${o.orderId || ''}`, marginX, Y(40));
       if (methodLabel) {
-        doc.setFontSize(13);
-        const mW = doc.getTextWidth(methodLabel);
-        doc.text(methodLabel, pageWidth - marginX - mW, 40);
+        d.setFontSize(13 * s);
+        const mW = d.getTextWidth(methodLabel);
+        d.text(methodLabel, pw - marginX - mW, Y(40));
       }
 
       // Row 2: placed-at (left) + payment (right)
-      doc.setFontSize(11);
-      doc.setFont(undefined, 'normal');
-      doc.text(placedAtText, marginX, 58);
-      const payWidth = doc.getTextWidth(paymentText);
-      const minPayX = marginX + doc.getTextWidth(placedAtText) + 16;
-      doc.text(paymentText, Math.max(pageWidth - marginX - payWidth, minPayX), 58);
+      d.setFont(undefined, 'normal');
+      d.setFontSize(11 * s);
+      d.text(placedAtText, marginX, Y(58));
+      const payWidth = d.getTextWidth(paymentText);
+      const minPayX = marginX + d.getTextWidth(placedAtText) + 16 * s;
+      d.text(paymentText, Math.max(pw - marginX - payWidth, minPayX), Y(58));
 
-      doc.setDrawColor(150);
-      doc.setLineWidth(0.5);
-      doc.line(marginX, 68, pageWidth - marginX, 68);
+      d.setDrawColor(150);
+      d.setLineWidth(0.5);
+      d.line(marginX, Y(68), pw - marginX, Y(68));
 
       // Prominent day-of-week band: weekday large on its own line, date/time beneath.
-      let headerBottom = 84;
+      let headerBottomBase = 84;
       if (day || rest) {
-        doc.setTextColor(0);
-        doc.setFontSize(26);
-        doc.setFont(undefined, 'bold');
-        doc.text(day || rest, marginX, 98);
-        let bandBottom = 98;
+        d.setFont(undefined, 'bold');
+        d.setFontSize(26 * s);
+        d.text(day || rest, marginX, Y(98));
+        let bandBase = 98;
         if (day && rest) {
-          doc.setFontSize(13);
-          doc.setFont(undefined, 'normal');
-          doc.text(rest, marginX, 120);
-          bandBottom = 120;
+          d.setFont(undefined, 'normal');
+          d.setFontSize(13 * s);
+          d.text(rest, marginX, Y(120));
+          bandBase = 120;
         }
-        headerBottom = bandBottom + 18;
+        headerBottomBase = bandBase + 18;
       }
 
-      const customerRows = [
-        ['Name', o.customerName || ''],
-        ['Email', o.customerEmail || ''],
-        ['Phone', o.phone || ''],
-        ['Address', formatAddress(o.address)],
-      ];
-      autoTable(doc, {
-        startY: headerBottom,
+      let y = Y(headerBottomBase);
+
+      const sharedStyles = { fontSize: 10 * s, cellPadding: 6 * s, overflow: 'linebreak' };
+      const darkHead = { fillColor: [33, 33, 33], textColor: 255 };
+
+      // Customer details
+      autoTable(d, {
+        startY: y,
         head: [['Customer Details', '']],
-        body: customerRows,
-        styles: { fontSize: 10, cellPadding: 6, overflow: 'linebreak' },
+        body: [
+          ['Name', o.customerName || ''],
+          ['Email', o.customerEmail || ''],
+          ['Phone', o.phone || ''],
+          ['Address', formatAddress(o.address)],
+        ],
+        styles: sharedStyles,
         headStyles: { fillColor: [245, 135, 53], textColor: 0 },
-        columnStyles: {
-          0: { cellWidth: 140 },
-          1: { cellWidth: pageWidth - marginX * 2 - 140 },
-        },
+        columnStyles: { 0: { cellWidth: 140 }, 1: { cellWidth: pw - marginX * 2 - 140 } },
         margin: { left: marginX, right: marginX },
         tableWidth: 'wrap',
       });
+      y = d.lastAutoTable.finalY + gap;
 
-      const yAfterCustomer = doc.lastAutoTable?.finalY ?? 84;
-      const linesRows = buildLinesRows(o.lines);
-      autoTable(doc, {
-        startY: yAfterCustomer + 18,
-        head: [['Items', 'Size', 'Qty']],
-        body: linesRows.length ? linesRows : [['-', '-', '-']],
-        styles: { fontSize: 10, cellPadding: 6 },
-        headStyles: { fillColor: [33, 33, 33], textColor: 255 },
-        columnStyles: {
-          0: { cellWidth: pageWidth - marginX * 2 - 180 },
-          1: { cellWidth: 120 },
-          2: { cellWidth: 60 },
-        },
+      // Items — compact "qty× name (size)" strings laid out in 2 columns so a
+      // large menu stays readable and fits without shrinking as aggressively.
+      const compact = buildLinesRows(o.lines).map(([name, size, qty]) => {
+        const q = (qty !== '' && qty != null) ? `${qty}× ` : '';
+        const sz = size ? `  (${size})` : '';
+        return `${q}${name}${sz}`;
+      });
+      const colW = (pw - marginX * 2) / 2;
+      const half = Math.max(1, Math.ceil(compact.length / 2));
+      const itemBody = [];
+      for (let i = 0; i < half; i++) itemBody.push([compact[i] || '', compact[half + i] || '']);
+      autoTable(d, {
+        startY: y,
+        head: [[{ content: 'Items', colSpan: 2 }]],
+        body: compact.length ? itemBody : [['-', '']],
+        styles: { ...sharedStyles, fontStyle: 'bold' },
+        headStyles: { ...darkHead, fontStyle: 'bold' },
+        columnStyles: { 0: { cellWidth: colW }, 1: { cellWidth: colW } },
         margin: { left: marginX, right: marginX },
         tableWidth: 'wrap',
-        didParseCell: (data) => {
-          if (data.section === 'body' && data.column.index === 0) {
-            data.cell.styles.fontStyle = 'bold';
-          }
-        }
       });
+      y = d.lastAutoTable.finalY + gap;
 
-      const yAfterLines = doc.lastAutoTable?.finalY ?? (yAfterCustomer + 18);
+      // Additional details (add-ons + codes)
       const { raitaLabel, warmersLabel, utensilsLabel } = parseAddOns(o.addOns);
       const agentCode = parseAgentReferenceCode(o.codes);
       const discountCode = parseDiscountCode(o.codes);
-
-      autoTable(doc, {
-        startY: yAfterLines + 18,
+      autoTable(d, {
+        startY: y,
         head: [['Additional Details', ' ']],
         body: [
           ['AddOns - Raita, Papad & Pickle', raitaLabel || '-'],
@@ -443,31 +458,41 @@ const updatePaymentStatus = async (order, status) => {
           ['Codes - Agent Reference', agentCode || '-'],
           ['Codes - Discount Code', discountCode || '-'],
         ],
-        styles: { fontSize: 10, cellPadding: 6 },
-        headStyles: { fillColor: [33, 33, 33], textColor: 255 },
-        columnStyles: {
-          0: { cellWidth: 200 },
-          1: { cellWidth: pageWidth - marginX * 2 - 200 },
-        },
+        styles: sharedStyles,
+        headStyles: darkHead,
+        columnStyles: { 0: { cellWidth: 200 }, 1: { cellWidth: pw - marginX * 2 - 200 } },
+        margin: { left: marginX, right: marginX },
+        tableWidth: 'wrap',
+      });
+      y = d.lastAutoTable.finalY + gap;
+
+      // Spice & Notes (includes Special Request)
+      const spiceRows = buildSpiceAndNotesRows(o);
+      autoTable(d, {
+        startY: y,
+        head: [['Spice & Notes', ' ']],
+        body: spiceRows.length ? spiceRows : [['Spice', '-']],
+        styles: sharedStyles,
+        headStyles: darkHead,
+        columnStyles: { 0: { cellWidth: 200 }, 1: { cellWidth: pw - marginX * 2 - 200 } },
         margin: { left: marginX, right: marginX },
         tableWidth: 'wrap',
       });
 
-      // ---- Spice & Notes (includes Special Request) ----
-      const spiceRows = buildSpiceAndNotesRows(o);
-      autoTable(doc, {
-        startY: (doc.lastAutoTable?.finalY ?? (yAfterLines + 18)) + 18,
-        head: [['Spice & Notes', ' ']],
-        body: spiceRows.length ? spiceRows : [['Spice', '-']],
-        styles: { fontSize: 10, cellPadding: 6 },
-        headStyles: { fillColor: [33, 33, 33], textColor: 255 },
-        columnStyles: {
-          0: { cellWidth: 200 },
-          1: { cellWidth: pageWidth - marginX * 2 - 200 },
-        },
-        margin: { left: marginX, right: marginX },
-        tableWidth: 'wrap',
-      });
+      return d.lastAutoTable.finalY;
+    };
+
+    pick.forEach((o, idx) => {
+      // Measure natural height on a very tall page so nothing paginates.
+      // (14400pt is jsPDF's max page dimension — far beyond any real order.)
+      const scratch = new jsPDF({ unit: 'pt', format: [pageWidth, 14400] });
+      const naturalBottom = drawOrder(scratch, o, 1);
+      const naturalHeight = naturalBottom - marginTop;
+      // Scale down only if needed; 0.97 keeps a little breathing room.
+      const s = Math.min(1, (usable / naturalHeight) * 0.97);
+
+      if (idx > 0) doc.addPage();
+      drawOrder(doc, o, s);
     });
 
     const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');

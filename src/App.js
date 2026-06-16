@@ -46,6 +46,15 @@ function AppContent() {
     fetchData();
   }, []);
 
+  // The admin console has its own hostname (admin.india101.com). When the app is
+  // opened on that host at the root, send the user straight to /admin.
+  useEffect(() => {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (host.startsWith('admin.') && location.pathname === '/') {
+      navigate('/admin', { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
   const handleSignOut = async () => {
     try {
       console.log('🔓 Signing out from AdminDashboard');

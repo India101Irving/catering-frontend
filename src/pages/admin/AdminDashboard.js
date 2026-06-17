@@ -5,6 +5,7 @@ import PriceConfig from './PriceConfig';
 import HoursConfig from './HoursConfig';
 import PackageConfig from './PackageConfig';
 import WhatsCooking from './WhatsCooking';
+import Communications from './Communications';
 import Wordmark from '../../components/ui/Wordmark';
 
 const TABS = [
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'Package Configuration', label: 'Packages' },
   { id: 'Hours Configuration', label: 'Hours' },
   { id: "What's Cooking", label: "What's Cooking" },
+  { id: 'Communications', label: 'Communications' },
 ];
 
 export default function AdminDashboard(props) {
@@ -57,6 +59,7 @@ export default function AdminDashboard(props) {
         {activeTab === 'Package Configuration' && <PackageConfig {...props} />}
         {activeTab === 'Hours Configuration' && <HoursConfig />}
         {activeTab === "What's Cooking" && <WhatsCooking />}
+        {activeTab === 'Communications' && <Communications />}
       </main>
     </div>
   );

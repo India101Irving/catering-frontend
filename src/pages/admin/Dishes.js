@@ -5,6 +5,18 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { ENDPOINTS } from '../../config/endpoints';
 
 const PORTAL_API = ENDPOINTS.portalApi;
+const TIERS = [
+  { id: '', label: 'Auto (by category)' },
+  { id: 'veg-curry', label: 'Veg curry · $14.99' },
+  { id: 'nonveg-curry', label: 'Non-veg curry · $15.99' },
+  { id: 'premium', label: 'Premium · $16.99' },
+  { id: 'indo-chinese', label: 'Indo-Chinese · $10.99' },
+  { id: 'biryani', label: 'Biryani · $14.99' },
+  { id: 'bread', label: 'Bread · $2.99' },
+  { id: 'dessert', label: 'Dessert · $3.99' },
+  { id: 'drink', label: 'Drink · $1.99' },
+  { id: 'appetizer', label: 'Appetizer · $5.99' },
+];
 const CATEGORIES = [
   'Live Station', 'Appetizers', 'Soups & Salads', 'Curries',
   'Rice & Biryani', 'Breads', 'Sides & Chaat', 'Desserts', 'Beverages',
@@ -50,7 +62,7 @@ export default function Dishes() {
       const res = await fetch(`${PORTAL_API}/api/dishes`, {
         method: 'PATCH',
         headers: await authHeaders(),
-        body: JSON.stringify({ id: d.id, description: d.description, category: d.category }),
+        body: JSON.stringify({ id: d.id, description: d.description, category: d.category, priceTier: d.priceTier || '', priceCents: d.priceCents || 0 }),
       }).then((r) => r.json());
       if (res.ok && res.dish) update(d.id, res.dish);
     } catch {
@@ -94,6 +106,23 @@ export default function Dishes() {
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <Badge src={d.catSource} />
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-neutral-500">À-la-carte price</span>
+              <select value={d.priceTier || ''} onChange={(e) => update(d.id, { priceTier: e.target.value })} className="ui-input" style={{ width: 'auto' }}>
+                {TIERS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+              <span className="text-neutral-500">or override $</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={d.priceCents ? (d.priceCents / 100).toFixed(2) : ''}
+                onChange={(e) => update(d.id, { priceCents: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 })}
+                placeholder="auto"
+                className="ui-input"
+                style={{ width: '90px' }}
+              />
             </div>
             <div className="mt-2 flex items-start gap-2">
               <textarea

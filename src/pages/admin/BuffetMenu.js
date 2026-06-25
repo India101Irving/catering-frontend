@@ -1,7 +1,7 @@
 // BuffetMenu.js — admin page to manage the India 101 daily buffet menu.
 // Calls the portal's staff-gated /api/menu (same Cognito pool, so the admin's
 // ID token validates). Powers the public /todays-buffet page + takeout ordering.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { ENDPOINTS } from '../../config/endpoints';
 
@@ -34,6 +34,55 @@ function weekdayLabel(date) {
   const [y, m, d] = date.split('-').map(Number);
   return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })
     .format(new Date(Date.UTC(y, m - 1, d)));
+}
+
+function DishNameInput({ value, onName, onPick }) {
+  const [sugg, setSugg] = useState([]);
+  const [open, setOpen] = useState(false);
+  const timer = useRef(null);
+
+  function onChange(v) {
+    onName(v);
+    if (timer.current) clearTimeout(timer.current);
+    if (v.trim().length < 2) { setSugg([]); return; }
+    timer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${PORTAL_API}/api/dishes?q=${encodeURIComponent(v)}`, { headers: await authHeaders() }).then((r) => r.json());
+        setSugg(res.dishes || []);
+        setOpen(true);
+      } catch { /* ignore */ }
+    }, 200);
+  }
+
+  return (
+    <div className="relative flex-1 min-w-[180px]">
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => sugg.length > 0 && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Dish name"
+        className="ui-input w-full"
+      />
+      {open && sugg.length > 0 && (
+        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[color:var(--line)] bg-[color:var(--surface-2)] shadow-xl">
+          {sugg.map((d) => (
+            <li key={d.id}>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onPick(d); setOpen(false); }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-white/5"
+              >
+                <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm ${d.veg ? 'bg-green-600' : 'bg-red-700'}`} />
+                <span className="truncate text-white">{d.name}</span>
+                {d.category && <span className="ml-auto shrink-0 text-xs text-neutral-500">{d.category}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export default function BuffetMenu() {
@@ -128,11 +177,10 @@ export default function BuffetMenu() {
         <div className="space-y-2">
           {items.map((it, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-[color:var(--line)] p-2">
-              <input
+              <DishNameInput
                 value={it.name}
-                onChange={(e) => update(i, { name: e.target.value })}
-                placeholder="Dish name"
-                className={`ui-input flex-1 min-w-[180px] ${it.available ? '' : 'line-through opacity-60'}`}
+                onName={(v) => update(i, { name: v })}
+                onPick={(d) => update(i, { name: d.name, category: d.category, veg: d.veg })}
               />
               <select value={it.category} onChange={(e) => update(i, { category: e.target.value })} className="ui-input" style={{ width: 'auto' }}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}

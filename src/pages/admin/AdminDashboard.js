@@ -8,11 +8,13 @@ import WhatsCooking from './WhatsCooking';
 import BuffetMenu from './BuffetMenu';
 import Communications from './Communications';
 import Reports from './Reports';
+import Dishes from './Dishes';
 import Wordmark from '../../components/ui/Wordmark';
 
 const TABS = [
   { id: 'Orders', label: 'Orders' },
   { id: 'Buffet Menu', label: 'Buffet Menu' },
+  { id: 'Dish Catalog', label: 'Dish Catalog' },
   { id: 'Price Configuration', label: 'Pricing' },
   { id: 'Package Configuration', label: 'Packages' },
   { id: 'Hours Configuration', label: 'Hours' },
@@ -60,6 +62,7 @@ export default function AdminDashboard(props) {
       <main className="mx-auto max-w-[1400px] px-4 md:px-6 py-5 md:py-7 fade-in">
         {activeTab === 'Orders' && <Orders />}
         {activeTab === 'Buffet Menu' && <BuffetMenu />}
+        {activeTab === 'Dish Catalog' && <Dishes />}
         {activeTab === 'Price Configuration' && <PriceConfig {...props} />}
         {activeTab === 'Package Configuration' && <PackageConfig {...props} />}
         {activeTab === 'Hours Configuration' && <HoursConfig />}

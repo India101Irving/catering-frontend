@@ -5,11 +5,13 @@ import PriceConfig from './PriceConfig';
 import HoursConfig from './HoursConfig';
 import PackageConfig from './PackageConfig';
 import WhatsCooking from './WhatsCooking';
+import BuffetMenu from './BuffetMenu';
 import Communications from './Communications';
 import Wordmark from '../../components/ui/Wordmark';
 
 const TABS = [
   { id: 'Orders', label: 'Orders' },
+  { id: 'Buffet Menu', label: 'Buffet Menu' },
   { id: 'Price Configuration', label: 'Pricing' },
   { id: 'Package Configuration', label: 'Packages' },
   { id: 'Hours Configuration', label: 'Hours' },
@@ -55,6 +57,7 @@ export default function AdminDashboard(props) {
       {/* Content */}
       <main className="mx-auto max-w-[1400px] px-4 md:px-6 py-5 md:py-7 fade-in">
         {activeTab === 'Orders' && <Orders />}
+        {activeTab === 'Buffet Menu' && <BuffetMenu />}
         {activeTab === 'Price Configuration' && <PriceConfig {...props} />}
         {activeTab === 'Package Configuration' && <PackageConfig {...props} />}
         {activeTab === 'Hours Configuration' && <HoursConfig />}

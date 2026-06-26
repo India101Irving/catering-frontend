@@ -62,7 +62,7 @@ export default function Dishes() {
       const res = await fetch(`${PORTAL_API}/api/dishes`, {
         method: 'PATCH',
         headers: await authHeaders(),
-        body: JSON.stringify({ id: d.id, description: d.description, category: d.category, priceTier: d.priceTier || '', priceCents: d.priceCents || 0 }),
+        body: JSON.stringify({ id: d.id, description: d.description, category: d.category, priceTier: d.priceTier || '', priceCents: d.priceCents || 0, panCostCents: d.panCostCents || 0 }),
       }).then((r) => r.json());
       if (res.ok && res.dish) update(d.id, res.dish);
     } catch {
@@ -120,6 +120,18 @@ export default function Dishes() {
                 value={d.priceCents ? (d.priceCents / 100).toFixed(2) : ''}
                 onChange={(e) => update(d.id, { priceCents: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 })}
                 placeholder="auto"
+                className="ui-input"
+                style={{ width: '90px' }}
+              />
+              <span className="text-neutral-500 ml-3">Pan cost $</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                title="Food cost of one full pan/batch — for the buffet food-cost report"
+                value={d.panCostCents ? (d.panCostCents / 100).toFixed(2) : ''}
+                onChange={(e) => update(d.id, { panCostCents: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 })}
+                placeholder="0"
                 className="ui-input"
                 style={{ width: '90px' }}
               />

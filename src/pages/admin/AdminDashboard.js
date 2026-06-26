@@ -8,6 +8,7 @@ import WhatsCooking from './WhatsCooking';
 import BuffetMenu from './BuffetMenu';
 import Communications from './Communications';
 import Reports from './Reports';
+import FoodCost from './FoodCost';
 import Dishes from './Dishes';
 import Wordmark from '../../components/ui/Wordmark';
 
@@ -21,6 +22,7 @@ const TABS = [
   { id: "What's Cooking", label: "What's Cooking" },
   { id: 'Communications', label: 'Communications' },
   { id: 'Reports', label: 'Reports' },
+  { id: 'Food Cost', label: 'Food Cost' },
 ];
 
 export default function AdminDashboard(props) {
@@ -69,6 +71,7 @@ export default function AdminDashboard(props) {
         {activeTab === "What's Cooking" && <WhatsCooking />}
         {activeTab === 'Communications' && <Communications />}
         {activeTab === 'Reports' && <Reports />}
+        {activeTab === 'Food Cost' && <FoodCost />}
       </main>
     </div>
   );
